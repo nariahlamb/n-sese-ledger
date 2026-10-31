@@ -1,4 +1,4 @@
-// ===== 剧情推进显示正则：面板模板 + 两条正则脚本定义 =====
+// ===== 剧情推进正则：面板模板 + 三条正则脚本定义（两条显示、一条提示词） =====
 //
 // 单一事实源：本文件的面板 HTML/CSS/JS（历史对照 mockup 曾逐字核验，已清理）；
 // mockup 的预览外壳不在此文件。
@@ -27,11 +27,16 @@ export interface PlotRegexScript {
 export const PLOT_REGEX_PREFIX = '【瑟瑟台账】';
 export const PLOT_PANEL_SCRIPT_NAME = PLOT_REGEX_PREFIX + '剧情推进·面板';
 export const PLOT_HIDE_SCRIPT_NAME = PLOT_REGEX_PREFIX + '剧情推进·隐藏历史';
+export const PLOT_PROMPT_STRIP_SCRIPT_NAME = PLOT_REGEX_PREFIX + '剧情推进·历史只留输入';
 
 /** 面板：整条用户楼 → 面板 HTML（display only；maxDepth 1＝只美化最新用户楼）。 */
 const PANEL_FIND = '/^[\\s\\S]*?<本轮用户输入>([\\s\\S]*?)<\\/本轮用户输入>([\\s\\S]*)$/';
 /** 历史：更早的台账用户楼整条替换为空（display only；不删提示词历史）。 */
 const HIDE_FIND = '/^[\\s\\S]*<本轮用户输入>[\\s\\S]*<\\/本轮用户输入>[\\s\\S]*$/';
+/** 提示词：更早的台账用户楼只保留 <本轮用户输入> 内文，去掉召回/soul/chaos/spot 等当轮指令。
+ *  宿主提示词深度：末楼=0（续写时末楼=-1、其前用户楼=0；swipe 先弹出待重写楼），故 minDepth 1
+ *  恒保留本轮用户楼。世界书扫描读的也是正则后的历史，旧楼 <recall> 不再重复触发纪要条目。 */
+const PROMPT_STRIP_FIND = '/^[\\s\\S]*?<本轮用户输入>\\n?([\\s\\S]*?)\\n?<\\/本轮用户输入>[\\s\\S]*$/';
 
 export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
 <html lang="zh-CN">
@@ -1080,5 +1085,20 @@ export function plotRegexScripts(): PlotRegexScript[] {
     minDepth: 2,
     maxDepth: null,
   };
-  return [panel, hide];
+  const promptStrip: PlotRegexScript = {
+    id: '7c2f5a10-3b9d-4e6a-8f21-5d0c9b1a2e03',
+    scriptName: PLOT_PROMPT_STRIP_SCRIPT_NAME,
+    findRegex: PROMPT_STRIP_FIND,
+    replaceString: '$1',
+    trimStrings: [],
+    placement: [1],
+    disabled: false,
+    markdownOnly: false,
+    promptOnly: true,
+    runOnEdit: false,
+    substituteRegex: 0,
+    minDepth: 1,
+    maxDepth: null,
+  };
+  return [panel, hide, promptStrip];
 }
