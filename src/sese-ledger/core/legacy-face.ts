@@ -199,7 +199,7 @@ export function createLegacyFace(deps: LegacyFaceDeps) {
     const scope = String(options.scope || 'chat');
     const presetName = options.presetName ? String(options.presetName) : '';
     if (scope === 'global') {
-      const name = presetName || deps.settings.get().defaultTemplatePreset || deps.standardPresetName;
+      const name = presetName || deps.settings.get().currentTemplatePreset || deps.standardPresetName;
       const preset = name === deps.standardPresetName ? deps.standardTemplate : deps.settings.loadTemplatePreset(name);
       const normalized = preset ? normalizeForApply(preset) : null;
       return (normalized && normalized.ok ? normalized.workbook : null) || deps.standardTemplate;
@@ -517,8 +517,8 @@ export function createLegacyFace(deps: LegacyFaceDeps) {
       if (presetName !== deps.standardPresetName && !names.includes(presetName)) {
         return { success: false, scope, message: `预设「${presetName}」不存在`, error: 'preset not found' };
       }
-      await deps.settings.update({ defaultTemplatePreset: presetName });
-      return { success: true, scope, message: `默认预设已切换为「${presetName}」`, runtimeReady: true };
+      await deps.settings.update({ currentTemplatePreset: presetName });
+      return { success: true, scope, message: `当前模板已切换为「${presetName}」（全局保存）`, runtimeReady: true };
     },
     async exportJsonData() {
       const book = readyBook();

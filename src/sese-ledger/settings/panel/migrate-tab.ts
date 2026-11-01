@@ -25,7 +25,7 @@ export function renderMigrateTab(ctx: TabCtx, pane: HTMLElement): void {
   const s = deps.settings.get();
   const state: MigrateUiState = { step: 1, report: null, aligned: null, alignReport: null };
   const presetNames = deps.settings.listTemplatePresetNames().filter((n) => n !== deps.standardPresetName);
-  const currentLabel = String(deps.canonical?.templateBinding?.name?.() || '') || s.defaultTemplatePreset || deps.standardPresetName;
+  const currentLabel = String(deps.canonical?.templateBinding?.name?.() || '') || s.currentTemplatePreset || deps.standardPresetName;
   const stdInfo = `${esc(deps.standardPresetName)} · ${deps.standardTemplateV2.tables.length} 表 / ${deps.standardTemplateV2.groups.length} 分组`;
   pane.innerHTML = '';
 
@@ -392,7 +392,7 @@ export function renderMigrateTab(ctx: TabCtx, pane: HTMLElement): void {
         const keep = await confirmDialog(
           deps,
           `发现 ${extras.length} 张模板外的数据表：${names.join('、')}。\n\n`
-          + `「并入新模板」= 另存一份**新模板**并改绑本角色卡（其他角色卡不受影响；这些表的数据保留）\n`
+          + `「并入新模板」= 另存并全局选用一份**新模板**（换卡后继续使用；这些表的数据保留）\n`
           + `「丢弃这些表」= 这些表的数据不导入。`,
           { okText: '并入新模板（保留数据）', cancelText: '丢弃这些表' },
         );
@@ -408,11 +408,11 @@ export function renderMigrateTab(ctx: TabCtx, pane: HTMLElement): void {
             deps.warn('并入失败（迁移产物结构无法转换），已按「丢弃」继续');
           } else {
             await deps.settings.saveTemplatePreset(mergedName, JSON.stringify(mergedResult.template));
-            const bindResult = deps.canonical.templateBinding?.set?.(mergedName);
+            const bindResult = await deps.canonical.templateBinding?.set?.(mergedName);
             if (bindResult && bindResult.ok === false) deps.warn(bindResult.message);
             tplWorkbook = v2TemplateToWorkbook(mergedResult.template);
             tplName = mergedName;
-            deps.notify(`已并入新模板「${mergedName}」（${mergedResult.merged.join('、')}）并改绑本角色卡`);
+            deps.notify(`已并入新模板「${mergedName}」（${mergedResult.merged.join('、')}）并全局选用`);
           }
         }
       }

@@ -20,6 +20,7 @@ test('真实构建产物在无聊天的模拟酒馆中启动，不发送 AI 请�
   const win = dom.window;
   const events = new Map();
   let aiRequests = 0;
+  let savedSettings;
   const files = new Map();
   const eventSource = {
     on(name, fn) { if (!events.has(name)) events.set(name, new Set()); events.get(name).add(fn); },
@@ -32,7 +33,8 @@ test('真实构建产物在无聊天的模拟酒馆中启动，不发送 AI 请�
     extensionSettings: {}, eventSource,
     eventTypes: new Proxy({}, { get: (_, name) => name }),
     getRequestHeaders: () => ({ 'Content-Type': 'application/json' }),
-    saveSettingsDebounced() {}, async saveMetadata() {}, name1: 'User', name2: '',
+    saveSettingsDebounced() { savedSettings = JSON.parse(JSON.stringify(context.extensionSettings)); },
+    async saveMetadata() {}, name1: 'User', name2: '',
   };
   win.SillyTavern = { getContext: () => context };
   win.$ = win.jQuery = jquery(win);
@@ -84,11 +86,61 @@ test('真实构建产物在无聊天的模拟酒馆中启动，不发送 AI 请�
     }
     const bundle = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
     const code = await transform(bundle, { format: 'iife', loader: 'js', target: 'es2022' });
+    if (config.id === 'sese-ledger') {
+      const legacy = JSON.parse(await readFile(new URL('../src/sese-ledger/assets/standard-template.json', import.meta.url), 'utf8'));
+      legacy.name = '旧卡模板';
+      context.extensionSettings.sese_ledger_v1 = {
+        defaultTemplatePreset: '台账标准模板',
+        templatePresets: { 旧卡模板: { templateStr: JSON.stringify(legacy), updatedAt: 1 } },
+      };
+      win.TavernHelper.getVariables = () => context.characterId === 0 && context.chatId
+        ? { seseLedgerTemplate: '旧卡模板' } : {};
+    }
     win.eval(code.code);
     await new Promise(resolve => setTimeout(resolve, 450));
     assert.equal(win[config.bootFlag], true, `${config.title}启动标记缺失`);
     if (config.id === 'sese-phone') assert(win.document.getElementById('ubp-root')?.shadowRoot, '手机壳未挂载');
-    if (config.id === 'sese-ledger') assert(win.SeseLedgerAPI, '台账 API 未挂载');
+    if (config.id === 'sese-ledger') {
+      assert(win.SeseLedgerAPI, '台账 API 未挂载');
+      const api = win.SeseLedgerAPI;
+      assert.equal(api.templateBinding.name(), '台账标准模板');
+      assert.equal(context.extensionSettings.sese_ledger_v1.currentTemplatePreset, undefined, '欢迎页提前完成了模板迁移');
+      context.characterId = 0;
+      context.chatId = '旧卡聊天';
+      assert.equal(api.templateBinding.name(), '旧卡模板', '首次升级未沿用当前卡的模板');
+      assert.equal(savedSettings.sese_ledger_v1.currentTemplatePreset, '旧卡模板');
+      const template = JSON.parse(JSON.stringify(api.standardTemplateV2));
+      template.name = '跨卡模板';
+      context.extensionSettings.sese_ledger_v1.templatePresets.跨卡模板 = { templateStr: JSON.stringify(template), updatedAt: 2 };
+      context.characters = [{ avatar: 'card-a.png' }, { avatar: 'card-b.png' }];
+      context.characterId = 0;
+      win.TavernHelper.getVariables = () => ({ seseLedgerTemplate: '台账标准模板' });
+      const selected = await api.templateBinding.set('跨卡模板');
+      assert.equal(selected.ok, true);
+      assert.equal(savedSettings.sese_ledger_v1.currentTemplatePreset, '跨卡模板', '所选模板未提交给宿主保存');
+      const workbook = JSON.stringify(api.templateBinding.workbook());
+      for (const characterId of [1, 0, undefined]) {
+        context.characterId = characterId;
+        context.groupId = characterId === undefined ? 'group-a' : null;
+        assert.equal(api.templateBinding.name(), '跨卡模板', '换卡或群聊后模板发生变化');
+        assert.equal(JSON.stringify(api.templateBinding.workbook()), workbook, '建账与收敛模板未跟随全局选择');
+      }
+      // 重新装载真实产物，仅保留宿主已保存的设置。
+      context.extensionSettings = JSON.parse(JSON.stringify(savedSettings));
+      context.chatId = '';
+      win.eval(code.code);
+      await new Promise(resolve => setTimeout(resolve, 450));
+      assert.equal(win.SeseLedgerAPI.templateBinding.name(), '跨卡模板');
+      assert.equal(JSON.stringify(win.SeseLedgerAPI.templateBinding.workbook()), workbook);
+      await win.SeseLedgerAPI.templateBinding.set('台账标准模板');
+      assert.equal(savedSettings.sese_ledger_v1.currentTemplatePreset, '台账标准模板', '切回内置模板未保存');
+      const switched = await win.AutoCardUpdaterAPI.switchTemplatePreset('跨卡模板', { scope: 'global' });
+      assert.equal(switched.success, true);
+      assert.equal(win.SeseLedgerAPI.templateBinding.name(), '跨卡模板', '公开 API 与工作台当前模板不一致');
+      assert.equal(JSON.stringify(win.AutoCardUpdaterAPI.getTableTemplate({ scope: 'global' })), workbook);
+      delete context.extensionSettings.sese_ledger_v1.templatePresets.跨卡模板;
+      assert.equal(win.SeseLedgerAPI.templateBinding.name(), '台账标准模板', '预设删除后未回落内置模板');
+    }
     assert.equal(aiRequests, 0);
     assert.deepEqual(errors, [], '模拟启动出现错误日志');
   } finally {

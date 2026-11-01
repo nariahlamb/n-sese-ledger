@@ -27,24 +27,12 @@ function readModeTag(mode: string): string {
   return '<span class="slw-tag">全量</span>';
 }
 
-/** 本聊天生效的模板名（角色卡绑定优先 → 全局默认预设 → 内置）。 */
+/** 全局所选模板名。 */
 function templateLabelOf(ctx: TabCtx): string {
   const binding = ctx.deps.canonical?.templateBinding;
   const bound = String(binding?.name?.() || '');
   if (bound) return bound;
-  return ctx.deps.settings.get().defaultTemplatePreset || ctx.deps.standardPresetName;
-}
-
-/** 绑定说明（跟随角色卡 / 群聊回落全局默认）。 */
-function bindingNoteOf(ctx: TabCtx): string {
-  const binding = ctx.deps.canonical?.templateBinding;
-  if (!binding || binding.writable?.() !== true) {
-    return '当前为群聊/无角色卡上下文：模板绑定回落「全局默认预设」（模板库全局保存）';
-  }
-  const bound = String(binding.boundToCard?.() || '');
-  return bound
-    ? `本模板跟随<b>当前角色卡</b>（该卡所有聊天共用；改结构自动写回该预设）`
-    : '尚未给该角色卡绑定模板：当前用「全局默认预设」，选一次模板即绑定到本卡';
+  return ctx.deps.settings.get().currentTemplatePreset || ctx.deps.standardPresetName;
 }
 
 export function renderTablesTab(ctx: TabCtx, pane: HTMLElement): void {
@@ -66,7 +54,7 @@ export function renderTablesTab(ctx: TabCtx, pane: HTMLElement): void {
   const currentLabel = templateLabelOf(ctx);
   const groups = book ? groupsOf(book) : [];
   const tplCard = el(doc, 'div', { class: 'slw-card' }, `
-    <h3>当前模板 <span class="desc">模板决定表结构、分组与世界书注入；模板库全局保存，<b>绑定跟随角色卡</b>（一处改，该卡所有聊天跟着变）</span></h3>
+    <h3>当前模板 <span class="desc">模板决定表结构、分组与世界书注入；模板库与<b>当前选择全局保存</b>（换卡、切换聊天、重启后继续使用）</span></h3>
     <div class="slw-row">
       <select id="slw-tpl-select" style="min-width:320px">
         <option value="${esc(deps.standardPresetName)}" ${currentLabel === deps.standardPresetName ? 'selected' : ''}>内置 · ${esc(deps.standardPresetName)} · ${esc(deps.standardTemplateV2.tables.length)} 表 / ${esc(deps.standardTemplateV2.groups.length)} 分组</option>
@@ -80,7 +68,7 @@ export function renderTablesTab(ctx: TabCtx, pane: HTMLElement): void {
       <button class="slw-btn danger" id="slw-tpl-delete">删除所选预设</button>
     </div>
     ${badPresets.length > 0 ? `<div class="slw-row"><span class="slw-muted" style="flex:1">检测到 ${badPresets.length} 个读不出来的模板预设（内容不是模板 JSON / 结构校验不过）：${badPresets.map((p) => esc(p.name)).join('、')}——选中后可直接「删除所选预设」。</span></div>` : ''}
-    <div class="slw-annot">导入数据库（v1）模板 JSON 时自动转换为台账 v2：DDL→列定义（枚举/长度/数字限制丢弃）、角色过滤→按触发读取、updateConfig 调度参数→分组注册表。转换报告会先展示再落库。表名/列名一律中文（引擎只认中文名）：填表与查询都用中文名。<br>当前模板<b>「${esc(currentLabel)}」</b>＝结构真源与写回目标：改分组 / 改表结构 / 增删表 / 套用建表向导后自动写回该模板；${bindingNoteOf(ctx)}。绑定内置标准模板时改结构会自动另存派生预设并改绑（内置不可改）。要留档另一份用「另存为预设」（存进模板库）；<b>「导出 JSON」</b>把当前模板存成一个模板文件（分组 / 读取设置 / 世界书注入 / 表说明与触发提示全带走），用「＋ 导入数据库模板 JSON…」即可原样读回。</div>`);
+    <div class="slw-annot">导入数据库（v1）模板 JSON 时自动转换为台账 v2：DDL→列定义（枚举/长度/数字限制丢弃）、角色过滤→按触发读取、updateConfig 调度参数→分组注册表。转换报告会先展示再落库。表名/列名一律中文（引擎只认中文名）：填表与查询都用中文名。<br>当前模板<b>「${esc(currentLabel)}」</b>＝结构真源与写回目标：改分组 / 改表结构 / 增删表 / 套用建表向导后自动写回该模板；所选模板全局保存，换卡后继续使用。选用内置标准模板时改结构会自动另存派生预设并选用（内置不可改）。要留档另一份用「另存为预设」（存进模板库）；<b>「导出 JSON」</b>把当前模板存成一个模板文件（分组 / 读取设置 / 世界书注入 / 表说明与触发提示全带走），用「＋ 导入数据库模板 JSON…」即可原样读回。</div>`);
   pane.appendChild(tplCard);
   tplCard.querySelector('#slw-tpl-select')!.addEventListener('change', async (e) => {
     const value = (e.target as HTMLSelectElement).value;
@@ -107,8 +95,7 @@ export function renderTablesTab(ctx: TabCtx, pane: HTMLElement): void {
     // 交由既有链路统一归一化：v2 直通 / 纯 v1 自动转换 / 带 ledgerV2 的 workbook 走直通分支
     const r = await deps.canonical.applyBlueprint(isStandard ? deps.canonical.standardTemplateWorkbook : loaded, { scope: 'chat' });
     if (r?.success === false) { deps.warn(r?.message || '模板套用失败'); return; }
-    // 绑定跟随角色卡（同卡各聊天共用）；无卡上下文（群聊）由 canonical 回落全局默认预设
-    const bindResult = deps.canonical.templateBinding?.set?.(value);
+    const bindResult = await deps.canonical.templateBinding?.set?.(value);
     if (bindResult && bindResult.ok === false) deps.warn(bindResult.message);
     else deps.notify(bindResult?.message || `已套用模板「${value}」（当前聊天）`);
     ctx.structureChanged();
@@ -325,7 +312,7 @@ async function importTemplateJson(ctx: TabCtx): Promise<void> {
   const name = await promptDialog(deps, '保存为预设名：', '导入模板 ' + new Date().toISOString().slice(5, 10), { okText: '导入' });
   if (name === null) return; // 点取消 = 中止整个导入，不能继续套用（E6）
   await deps.settings.saveTemplatePreset(name || '导入模板', JSON.stringify(normalized.v2));
-  const bindResult = deps.canonical.templateBinding?.set?.(name || '导入模板');
+  const bindResult = await deps.canonical.templateBinding?.set?.(name || '导入模板');
   if (bindResult && bindResult.ok === false) deps.warn(bindResult.message);
   const r = await deps.canonical.applyBlueprint(normalized.workbook, { scope: 'chat' });
   if (r?.success !== false) deps.notify('模板已导入并套用');
@@ -338,8 +325,14 @@ async function applyBlankTemplate(ctx: TabCtx): Promise<void> {
   if (!await confirmDialog(deps, '新建空白模板：丢弃当前聊天的全部表结构与数据行（模板外内容一律丢弃，不可恢复）？建议先「另存为预设」或「导出 JSON」备份。', { okText: '新建空白模板', danger: true })) return;
   const blank = { schemaVersion: 2, name: '空白模板', groups: [{ id: 1, name: '分组1', frequency: 1 }], tables: [] };
   const r = await deps.canonical.applyBlueprint(blank, { scope: 'chat' });
-  if (r?.success !== false) deps.notify('已套用空白模板（原表与数据已丢弃）');
-  else deps.warn(r?.message || '套用失败');
+  if (r?.success === false) { deps.warn(r?.message || '套用失败'); return; }
+  const names = new Set(deps.settings.listTemplatePresetNames());
+  let name = blank.name;
+  let suffix = 2;
+  while (names.has(name)) name = `${blank.name} ${suffix++}`;
+  await deps.settings.saveTemplatePreset(name, JSON.stringify({ ...blank, name }));
+  await deps.canonical.templateBinding?.set?.(name);
+  deps.notify(`已套用并保存「${name}」（原表与数据已丢弃）`);
   ctx.structureChanged();
 }
 

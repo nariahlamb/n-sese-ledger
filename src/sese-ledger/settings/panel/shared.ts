@@ -422,7 +422,7 @@ export function closeTransientDialogs(doc: Document): void {
   try { doc.querySelectorAll('.slw-dialog-mask').forEach((n) => n.remove()); } catch (_e) { /* ignore */ }
 }
 
-/** 可用的派生预设名（避免撞名；内置模板不可改 → 结构编辑落到派生模板并改绑本卡）。 */
+/** 可用的派生预设名（避免撞名；内置模板的结构编辑保存到派生模板）。 */
 function derivedPresetName(deps: WorkbenchDeps, base: string): string {
   const taken = new Set(deps.settings.listTemplatePresetNames());
   const stamp = new Date().toISOString().slice(0, 10);
@@ -432,12 +432,11 @@ function derivedPresetName(deps: WorkbenchDeps, base: string): string {
   return name;
 }
 
-/** 把当前账本回写成 v2 模板，写回**本聊天生效的模板**（＝角色卡绑定的预设；绑定内置/无卡上下文时回落全局默认预设）。
- *  绑定指向内置标准模板时：内置不可写 → 自动另存为派生预设 + 改绑本角色卡（结构编辑不落空、也不污染内置）。 */
+/** 把当前账本回写成全局所选的 v2 模板；内置模板的结构编辑自动另存并选用派生预设。 */
 export async function writeBackCurrentPreset(ctx: TabCtx): Promise<boolean> {
   const { deps } = ctx;
   const binding = deps.canonical?.templateBinding;
-  const boundOrEmpty = String(binding?.name?.() || deps.settings.get().defaultTemplatePreset || '');
+  const boundOrEmpty = String(binding?.name?.() || deps.settings.get().currentTemplatePreset || '');
   const book = deps.runtime.book();
   if (!book) return false;
   if (!boundOrEmpty || boundOrEmpty === deps.standardPresetName) {
@@ -446,9 +445,9 @@ export async function writeBackCurrentPreset(ctx: TabCtx): Promise<boolean> {
     const v2Derived = workbookToV2Template(projectWorkbook(book), derived);
     if (!v2Derived) return false;
     await deps.settings.saveTemplatePreset(derived, JSON.stringify(v2Derived));
-    const r = binding.set(derived);
-    if (r?.ok === false) { deps.warn(r.message || '改绑派生模板失败'); return false; }
-    deps.notify(`内置模板不可改：已另存为「${derived}」并改绑本角色卡`);
+    const r = await binding.set(derived);
+    if (r?.ok === false) { deps.warn(r.message || '选用派生模板失败'); return false; }
+    deps.notify(`内置模板不可改：已另存并选用「${derived}」（全局保存）`);
     return true;
   }
   const v2 = workbookToV2Template(projectWorkbook(book), boundOrEmpty);

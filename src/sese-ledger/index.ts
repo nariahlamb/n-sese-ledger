@@ -41,13 +41,13 @@ import { buildMergeInstruction, createSummaryMergeService, extractChronicle, typ
 import { summaryWarning } from './core/summary-warning';
 import { bindLedgerRelocationCopy } from './core/relocation';
 import { isAnchorCandidate, ledgerAnchorFor } from './core/floor-scope';
-import { canBindToCard, readBoundTemplateName, writeBoundTemplateName } from './core/card-binding';
+import { canBindToCard, readBoundTemplateName } from './core/card-binding';
 import { mountWorkbenchPanel, type WorkbenchHost, type WorkbenchDeps } from './settings/panel/shell';
 
 /** 主项目 v1 模板原形（**只喂两处**：数据库系裸名族的真名集 `collectTemplateExportEntryNames`、迁移边界的
  *  外文名对照——两处都要 entryName/DDL，而 v2 模板不含；台账运行结构不从这里来，见 STANDARD_TEMPLATE）。 */
 const STANDARD_TEMPLATE_RAW = TEMPLATE_JSON as WorkbookJson;
-/** 内置模板定名（＝标准模板资产的名字；外部契约：卡变量绑定与全局默认预设里存的就是它）。 */
+/** 内置模板定名（＝标准模板资产的名字；全局所选预设保存此名称）。 */
 const STANDARD_PRESET_NAME = '台账标准模板';
 const LEDGER_VERSION = 'SeseLedger V2.031';
 
@@ -194,18 +194,17 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   };
 
   // ---- 运行时 ----
-  /** 本聊天生效的模板名：角色卡绑定优先（同卡各聊天共用）→ 全局默认预设 → 内置标准模板。
-   *  绑定指向的预设已删时回落默认预设（并提示一次），不留悬空绑定阻断建账。 */
   function boundTemplateName(): string {
-    const bound = readBoundTemplateName();
-    if (bound) {
-      if (bound === STANDARD_PRESET_NAME || settings.listTemplatePresetNames().includes(bound)) return bound;
-      if (bound !== warnedMissingBinding) { warnedMissingBinding = bound; warn(`角色卡绑定的模板「${bound}」不存在，已回落默认预设（重新选一次模板即可改绑）`, '配置'); }
+    const names = new Set(settings.listTemplatePresetNames());
+    // 等角色聊天落定再迁移，欢迎页启动时尚读不到旧卡模板。
+    if (settings.get().currentTemplatePreset === undefined && canBindToCard() && liveChatKeyOf(getStContext())) {
+      const selected = [readBoundTemplateName(), settings.get().defaultTemplatePreset]
+        .find(name => name === STANDARD_PRESET_NAME || Boolean(name && names.has(name))) || STANDARD_PRESET_NAME;
+      void settings.update({ currentTemplatePreset: selected });
     }
-    const fallback = String(settings.get().defaultTemplatePreset || '');
-    return fallback || STANDARD_PRESET_NAME;
+    const selected = String(settings.get().currentTemplatePreset ?? settings.get().defaultTemplatePreset ?? '');
+    return selected === STANDARD_PRESET_NAME || names.has(selected) ? selected : STANDARD_PRESET_NAME;
   }
-  let warnedMissingBinding = '';
 
   /** 收敛模板（回放后用）：绑定模板 workbook（取不到 = null → 跳过收敛，按账本现状跑）。
    *  解析结果按预设版本记忆化（G1/G3）：回放/时光机 bake 不再每次 JSON.parse + 校验整份模板。 */
@@ -866,21 +865,13 @@ export function bootLedger(): { dispose: () => Promise<void> } {
     getBlueprint(options?: any) { return face.getTableTemplate(options); },
     applyBlueprint(json: unknown, options?: any) { return face.importTemplateFromData(json, options); },
     listBlueprintPresets() { return [...settings.listTemplatePresetNames()]; },
-    /** 模板绑定（跟随角色卡）：同卡各聊天共用一份绑定；群聊/欢迎页不可写 → 回落全局默认预设。 */
+    /** 当前模板全局保存，切换角色卡或聊天后继续使用。 */
     templateBinding: {
       name(): string { return boundTemplateName(); },
-      writable(): boolean { return canBindToCard(); },
-      boundToCard(): string { return canBindToCard() ? readBoundTemplateName() : ''; },
-      set(name: string): { ok: boolean; message: string } {
+      async set(name: string): Promise<{ ok: boolean; message: string }> {
         const target = String(name || '').trim() || STANDARD_PRESET_NAME;
-        if (!canBindToCard()) {
-          void settings.update({ defaultTemplatePreset: target });
-          return { ok: true, message: `群聊/无角色卡上下文：已把全局默认预设设为「${target}」（下次建账生效）` };
-        }
-        const ok = writeBoundTemplateName(target);
-        return ok
-          ? { ok: true, message: `本角色卡模板已设为「${target}」（该卡所有聊天跟随）` }
-          : { ok: false, message: '写入角色卡变量失败（角色卡可能只读），模板绑定未变' };
+        await settings.update({ currentTemplatePreset: target });
+        return { ok: true, message: `当前模板已保存为「${target}」（换卡、切换聊天后继续使用）` };
       },
       /** 收敛用：当前生效模板的 workbook（取不到 → null，调用方跳过收敛）。 */
       workbook(): WorkbookJson | null {

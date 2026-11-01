@@ -19,6 +19,7 @@ export interface LedgerApiBinding {
 export interface LedgerSettings {
   templatePresets?: Record<string, TemplatePresetEntry>;
   defaultTemplatePreset?: string;
+  currentTemplatePreset?: string;
   /** AI 填表总开关。 */
   autoFillEnabled?: boolean;
   /** 剧情推进总开关（默认开；仅显式 false 关闭）。 */
@@ -194,6 +195,7 @@ export function createSettingsStore(deps: SettingsDeps): SettingsStore {
       delete presets[name];
       const patch: LedgerSettings = { templatePresets: presets };
       if (s.defaultTemplatePreset === name) patch.defaultTemplatePreset = '';
+      if (s.currentTemplatePreset === name) patch.currentTemplatePreset = '';
       clearPresetCache();
       await persist({ ...s, ...patch });
     },
