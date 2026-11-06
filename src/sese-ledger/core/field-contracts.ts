@@ -18,6 +18,7 @@ export interface FieldContractHealth extends FieldContractItem {
   label: string;
   tablePresent: boolean;
   columnPresent: boolean;
+  evaluated: boolean;
   missing: boolean;
   observedMissing: boolean;
   missingCount: number;
@@ -45,12 +46,14 @@ function text(value: unknown): string { return String(value ?? '').trim(); }
 
 export function createFieldContractRegistry(getBook: () => BookModel | null): FieldContractRegistry {
   const contracts = new Map<string, RegisteredFieldContract>();
-  const observed = new Map<string, { count: number; feature: string }>();
+  const observed = new Map<string, number>();
+  let observedBook = getBook();
+  const syncBook = () => { const book = getBook(); if (book !== observedBook) { observed.clear(); observedBook = book; } return book; };
   const addItems = (items: FieldContractItem[]): void => {
     const contract = contracts.get("n-sese-ledger") || { pluginId: "n-sese-ledger", label: "瑟瑟台账", items: [] };
     const seen = new Set(contract.items.map(item => JSON.stringify([item.table, item.column || "", item.feature, item.required])));
     for (const raw of items) {
-      const item = { table: text(raw?.table), column: text(raw?.column) || undefined, feature: text(raw?.feature) || "未注明功能", required: raw?.required === true };
+      const item = { table: text(raw?.table), column: text(raw?.column) || undefined, feature: text(raw?.feature) || "未注明功能", required: raw?.required !== false };
       const key = JSON.stringify([item.table, item.column || "", item.feature, item.required]);
       if (!item.table || seen.has(key)) continue;
       seen.add(key);
@@ -65,7 +68,7 @@ export function createFieldContractRegistry(getBook: () => BookModel | null): Fi
       const seen = new Set<string>();
       const normalized = items.map(item => ({
         table: text(item?.table), column: text(item?.column) || undefined,
-        feature: text(item?.feature) || '未注明功能', required: item?.required === true,
+        feature: text(item?.feature) || '未注明功能', required: item?.required !== false,
       })).filter(item => {
         if (!item.table) return false;
         const key = JSON.stringify([item.table, item.column || '', item.feature, item.required]);
@@ -84,32 +87,29 @@ export function createFieldContractRegistry(getBook: () => BookModel | null): Fi
       const name = text(table);
       const col = text(column);
       if (!id || !name) return;
-      const key = JSON.stringify([id, name, col]);
-      const previous = observed.get(key);
-      observed.set(key, { count: (previous?.count || 0) + 1, feature: text(feature) || previous?.feature || '' });
+      syncBook();
+      const key = JSON.stringify([id, name, col, text(feature)]);
+      observed.set(key, (observed.get(key) || 0) + 1);
     },
     list() {
       return [...contracts.values()].map(contract => ({ ...contract, items: contract.items.map(item => ({ ...item })) }));
     },
     health() {
-      const book = getBook();
+      const book = syncBook();
       return this.list().flatMap(contract => contract.items.map(item => {
         const table = book ? resolveTable(book, item.table) : null;
         const headers = table?.headers || [];
-        const observedMissing = [...observed.entries()].some(([key, value]) => {
-          const [id, name, col] = JSON.parse(key) as string[];
-          return id === contract.pluginId && name === item.table && col === (item.column || '')
-            && (!item.feature || !value.feature || value.feature === item.feature);
+        const counts = [...observed.entries()].filter(([key]) => {
+          const [id, name, col, feature] = JSON.parse(key) as string[];
+          return id === contract.pluginId && name === item.table && (!col || col === (item.column || ''))
+            && (!feature || feature === item.feature);
         });
+        const missingCount = counts.reduce((sum, [, count]) => sum + count, 0);
+        const observedMissing = missingCount > 0;
         const tablePresent = !!table;
         const columnPresent = tablePresent && (!item.column || headers.includes(item.column));
-        const missingCount = [...observed.entries()].reduce((sum, [key, value]) => {
-          const [id, name, col] = JSON.parse(key) as string[];
-          return id === contract.pluginId && name === item.table && col === (item.column || '')
-            && (!item.feature || !value.feature || value.feature === item.feature) ? sum + value.count : sum;
-        }, 0);
         return { ...item, pluginId: contract.pluginId, label: contract.label, tablePresent, columnPresent,
-          missing: !tablePresent || !columnPresent, observedMissing, missingCount };
+          evaluated: !!book, missing: !!book && (!tablePresent || !columnPresent), observedMissing, missingCount };
       }));
     },
     impacts(changes) {

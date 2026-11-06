@@ -20,8 +20,9 @@ import { createFieldContractRegistry } from './core/field-contracts';
 import { createLegacyFace } from './core/legacy-face';
 import { createExtensionSettingsStore, isDriverEnabled, isProgressPersistEnabled } from './core/settings-store';
 import { INDEX_FILE_NAME } from './core/identity';
-import { isStoppedTable, resolveTable, resolveColumn } from './core/book';
-import { normalizeTemplateAny } from './core/blueprint';
+import { createBook, projectWorkbook, isStoppedTable, resolveTable, resolveColumn } from './core/book';
+import { normalizeTemplateAny, convergeBookToTemplate } from './core/blueprint';
+import { normalizeTemplateForApply } from './core/template-preview';
 import { runManualFill, runRefillForStory, runScheduledFill, fillPromptSpecsOf } from './core/scribe';
 import { createFillNotifier, createPersistentNotifier, createProgressToast } from './core/fill-notify';
 import { collectDatabaseBareNames, collectTemplateExportEntryNames, stripDatabaseEntries, stripManagedEntries } from './core/lens';
@@ -874,6 +875,30 @@ export function bootLedger(): { dispose: () => Promise<void> } {
         const target = String(name || '').trim() || STANDARD_PRESET_NAME;
         await settings.update({ currentTemplatePreset: target });
         return { ok: true, message: `当前模板已保存为「${target}」（换卡、切换聊天后继续使用）` };
+      },
+      async apply(name: string, input: unknown, options?: { preset?: unknown }): Promise<{ ok: boolean; message: string }> {
+        const before = runtime.book();
+        const sid = runtime.storageId();
+        if (!before || !runtime.isReady() || !runtime.isChatSettled() || runtime.isWriteProtected() || fillBusy) return { ok: false, message: '台账未就绪或正在填表，未切换模板' };
+        const normalized = normalizeTemplateForApply(input);
+        if (!normalized.ok || !normalized.workbook) return { ok: false, message: normalized.errors.join('；') || '模板校验失败' };
+        const target = String(name || '').trim();
+        if (!target || (options?.preset === undefined && target !== STANDARD_PRESET_NAME && !settings.listTemplatePresetNames().includes(target))) return { ok: false, message: '目标模板不存在' };
+        const next = createBook(JSON.parse(JSON.stringify(projectWorkbook(before))));
+        convergeBookToTemplate(next, normalized.workbook);
+        const commit = runtime.commitSnapshotReplace('import', projectWorkbook(next), { notify: false });
+        if (!commit.ok) return { ok: false, message: commit.errors.join('；') || '模板未能写入' };
+        const current = settings.get();
+        const patch = options?.preset === undefined
+          ? { currentTemplatePreset: target }
+          : { currentTemplatePreset: target, templatePresets: { ...(current.templatePresets || {}), [target]: { templateStr: JSON.stringify(options.preset), updatedAt: Date.now() } } };
+        try {
+          await settings.update(patch);
+          await runtime.flush();
+        } catch (_e) { return { ok: false, message: '模板保存失败，请保留备份并重试' }; }
+        if (runtime.storageId() === sid) runtime.notifyUpdate();
+        void refreshWorldbook({ force: true });
+        return { ok: true, message: `模板「${target}」已套用并保存（重载、切换聊天后继续使用）` };
       },
       /** 收敛用：当前生效模板的 workbook（取不到 → null，调用方跳过收敛）。 */
       workbook(): WorkbookJson | null {

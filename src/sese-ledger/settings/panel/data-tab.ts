@@ -152,12 +152,21 @@ export function renderDataTab(ctx: TabCtx, pane: HTMLElement): void {
     area.value = value;
     const previousFocus = doc.activeElement as HTMLElement | null;
     const finish = () => { close(); nested = null; previousFocus?.focus(); };
-    modal.querySelector('[data-close]')!.addEventListener('click', finish);
+    let closing = false;
+    const requestClose = async () => {
+      if (closing) return;
+      closing = true;
+      try {
+        if (apply && area.value !== value && !await askConfirm(deps, '放弃尚未保留的全屏草稿？')) return;
+        if (mask.isConnected) finish();
+      } finally { closing = false; }
+    };
+    modal.querySelector('[data-close]')!.addEventListener('click', () => { void requestClose(); });
     modal.querySelector('[data-apply]')?.addEventListener('click', () => { if (!busy()) { apply?.(area.value); finish(); } });
-    mask.addEventListener('click', (e) => { if (e.target === mask) finish(); });
+    mask.addEventListener('click', (e) => { if (e.target === mask) void requestClose(); });
     modal.addEventListener('keydown', (e) => {
       if (e.isComposing) return;
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); void requestClose(); }
       if (e.key === 'Tab') {
         const fields = [...modal.querySelectorAll<HTMLElement>('textarea:not(:disabled),button:not(:disabled)')];
         const first = fields[0]; const last = fields[fields.length - 1];

@@ -278,3 +278,119 @@ test('真实运行时：结构快照记账，整层回退恢复表与行', async
   assert.deepEqual(runtime.book().tables.get('sheet_demo').rows.get(10), before);
   await runtime.flush();
 });
+
+
+test('人工修改先整批校验必填和唯一约束，新增也拒绝重复唯一值', () => {
+  const f = fixture();
+  f.table.ddlInfo = { maxRowCount: 0, columns: [
+    { header: '姓名', notNull: true, unique: true }, { header: '备注', notNull: true, unique: false },
+  ] };
+  const before = api.projectWorkbook(f.book);
+  assert.throws(() => f.workbench.save(f.snapshot(), 20, ['名字1', '备注2']), /唯一列不能重复/);
+  assert.throws(() => f.workbench.save(f.snapshot(), 20, ['', '备注2']), /必填列/);
+  assert.throws(() => f.workbench.save(f.snapshot(), 20, ['先校验通过的姓名', '']), /必填列/);
+  assert.throws(() => f.workbench.save(f.snapshot([]), null, ['名字1', '新增备注']), /唯一列不能重复/);
+  assert.throws(() => f.workbench.save(f.snapshot([]), null, ['', '新增备注']), /必填列/);
+  assert.throws(() => f.workbench.save(f.snapshot([]), null, ['新增姓名', '']), /必填列/);
+  assert.equal(f.commits.length, 0);
+  assert.equal(f.table.rowIdHighWater, 30);
+  assert.deepEqual(api.projectWorkbook(f.book), before);
+  assert.equal(f.workbench.save(f.snapshot([]), null, ['新增姓名', '新增备注']), true);
+  assert.deepEqual(f.table.rows.get(31), ['31', '新增姓名', '新增备注']);
+});
+
+test('只检查本次修改，不因无关历史必填或唯一违规阻止修改其他格', () => {
+  const f = fixture();
+  f.table.ddlInfo = { maxRowCount: 0, columns: [
+    { header: '姓名', notNull: true, unique: true }, { header: '备注', notNull: false, unique: false },
+  ] };
+  f.table.rows.get(10)[1] = '';
+  f.table.rows.get(30)[1] = '名字2';
+  assert.equal(f.workbench.save(f.snapshot(), 20, ['名字2', '只修改备注']), true);
+  assert.equal(f.table.rows.get(20)[2], '只修改备注');
+  assert.deepEqual(f.commits[0].ops, [{ kind: 'cell', table: 'sheet_demo', rowId: 20, column: '备注', value: '只修改备注' }]);
+});
+
+for (const dismiss of ['Escape', 'cancel', 'mask']) test('全屏脏草稿关闭保护：' + dismiss, async () => {
+  const u = uiFixture();
+  try {
+    u.pane.querySelector('[data-edit="20"]').click();
+    const parent = u.doc.querySelector('[data-field="0"]');
+    parent.value = '主编辑草稿';
+    u.doc.querySelector('[data-expand="0"]').click();
+    const modal = u.doc.querySelector('.slw-data-full');
+    const area = modal.querySelector('textarea');
+    area.value = '全屏唯一草稿';
+    const close = () => {
+      if (dismiss === 'Escape') area.dispatchEvent(new u.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      else if (dismiss === 'cancel') modal.querySelector('[data-close]').click();
+      else modal.closest('.slw-dialog-mask').click();
+    };
+    close();
+    assert(u.doc.querySelector('[data-slw-ask]'));
+    u.doc.querySelector('[data-slw-ask-cancel]').click();
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(modal.isConnected, true);
+    assert.equal(area.value, '全屏唯一草稿');
+    assert.equal(parent.value, '主编辑草稿');
+    assert(u.doc.querySelector('[data-slw-editor]'));
+    close();
+    assert(u.doc.querySelector('[data-slw-ask]'));
+    u.doc.querySelector('[data-slw-ask-ok]').click();
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(modal.isConnected, false);
+    assert.equal(parent.value, '主编辑草稿');
+    assert(u.doc.querySelector('[data-slw-editor]'));
+    assert.equal(u.commits.length, 0);
+  } finally { u.close(); }
+});
+
+test('全屏无修改直接关闭，确认放弃时取消不影响随后保留到草稿', async () => {
+  const u = uiFixture();
+  try {
+    u.pane.querySelector('[data-edit="20"]').click();
+    const parent = u.doc.querySelector('[data-field="0"]');
+    u.doc.querySelector('[data-expand="0"]').click();
+    u.doc.querySelector('.slw-data-full [data-close]').click();
+    assert.equal(u.doc.querySelector('.slw-data-full'), null);
+    assert.equal(u.doc.querySelector('[data-slw-ask]'), null);
+    u.doc.querySelector('[data-expand="0"]').click();
+    u.doc.querySelector('.slw-data-full textarea').value = '确认后继续编辑';
+    u.doc.querySelector('.slw-data-full [data-close]').click();
+    u.doc.querySelector('[data-slw-ask-cancel]').click();
+    await Promise.resolve(); await Promise.resolve();
+    u.doc.querySelector('.slw-data-full [data-apply]').click();
+    assert.equal(parent.value, '确认后继续编辑');
+    assert.equal(u.doc.querySelector('.slw-data-full'), null);
+    assert(u.doc.querySelector('[data-slw-editor]'));
+    assert.equal(u.commits.length, 0);
+  } finally { u.close(); }
+});
+
+test('真实运行时：人工必填和唯一违规不入账，合法修改才落一条流水', async () => {
+  const result = await build({ absWorkingDir: fileURLToPath(new URL('..', import.meta.url)), entryPoints: ['src/sese-ledger/core/runtime.ts'], bundle: true, write: false, format: 'esm', platform: 'node', logLevel: 'silent' });
+  const { createLedgerRuntime } = await import('data:text/javascript;base64,' + Buffer.from(result.outputFiles[0].text).toString('base64'));
+  const source = template();
+  source.sheet_demo.ledgerV2 = { tableId: 'sheet_demo', name: '测试表', orderNo: 0, groupId: 1, worldbook: { enabled: false }, columns: [
+    { header: '姓名', type: 'text', unique: true, notNull: true }, { header: '备注', type: 'text', unique: false, notNull: true },
+  ] };
+  const chat = [{ is_user: false, id: 'manual-a1', mes: '正文' }];
+  const files = new Map(); const metadata = {};
+  const store = { async readJson(name) { return files.has(name) ? { found: true, value: files.get(name) } : { found: false }; }, async uploadJson(name, value) { files.set(name, JSON.parse(JSON.stringify(value))); return { ok: true }; } };
+  const runtime = createLedgerRuntime({ host: { context: () => ({ chat, chatKey: 'c', characterId: 'char', host: { chat, chatMetadata: metadata, saveChatMetadata: async () => {} } }) }, files: store, index: { readIndex: async () => ({ chats: {} }), writeIndex: async () => {} }, standardTemplate: source, previousChatExists: async () => false });
+  await runtime.onChatChanged(); await runtime.ensureSeeded();
+  const wb = api.createDataWorkbench({ runtime, getChat: () => chat, isBusy: () => false, getLocks: () => null });
+  assert.equal(runtime.book().tables.get('sheet_demo').ddlInfo.columns.find(c => c.header === '姓名').unique, true);
+  const before = api.projectWorkbook(runtime.book());
+  assert.throws(() => wb.save(wb.capture('sheet_demo', [20]), 20, ['名字1', '备注2']), /唯一列不能重复/);
+  assert.throws(() => wb.save(wb.capture('sheet_demo', [20]), 20, ['新名字', '']), /必填列/);
+  assert.throws(() => wb.save(wb.capture('sheet_demo'), null, ['名字1', '新备注']), /唯一列不能重复/);
+  assert.equal(runtime.visibleEntries().length, 0);
+  assert.deepEqual(api.projectWorkbook(runtime.book()), before);
+  assert.equal(wb.save(wb.capture('sheet_demo', [20]), 20, ['合法新名字', '备注2']), true);
+  assert.equal(runtime.visibleEntries().length, 1);
+  await runtime.flush();
+  const entries = [...files.values()].flatMap(value => value.entries || []);
+  assert.equal(entries.length, 1);
+  assert.deepEqual(entries[0].ops, [{ kind: 'cell', table: 'sheet_demo', rowId: 20, column: '姓名', value: '合法新名字' }]);
+});

@@ -55,7 +55,12 @@ export function previewTemplateChange(book: BookModel, input: unknown, fields: F
   })));
   const claimedRows = report.claimedRenames.map(item => ({ table: item.table, from: item.from, to: item.to,
     rows: resolveTable(book, item.tableId || item.table)?.rows.size || 0 }));
+  const tableRenames = [...book.tables].flatMap(([key, table]) => {
+    const target = copy.tables.get(key);
+    return target && target.name !== table.name ? [{ table: table.name, toTable: target.name, kind: 'rename' as const }] : [];
+  });
   const impacts = fields.impacts([
+    ...tableRenames,
     ...report.droppedTables.map(key => ({ table: nameOf(book, key), kind: 'delete' as const })),
     ...report.droppedColumns.flatMap(group => group.columns.map(column => ({ table: group.table, column, kind: 'delete' as const }))),
     ...report.adoptedTables.filter(item => item.name !== nameOf(book, item.tableKey)).map(item => ({

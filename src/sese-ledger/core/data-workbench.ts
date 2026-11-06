@@ -3,6 +3,7 @@ import type { LedgerRuntime, LedgerWriteTarget } from './runtime';
 import type { LedgerOp } from './types';
 import type { SheetLockState } from './guards';
 import { ledgerAnchorFor, writeScope } from './floor-scope';
+import { validateOpsSequential } from './fill-sql';
 
 export interface DataWorkbenchDeps {
   runtime: LedgerRuntime;
@@ -90,6 +91,8 @@ export function createDataWorkbench(deps: DataWorkbenchDeps) {
   function submit(snapshot: DataSnapshot, ops: LedgerOp[]): boolean {
     validate(snapshot);
     if (!ops.length) return false;
+    const checked = validateOpsSequential(snapshot.book, ops);
+    if (checked.errors.length) throw new Error(checked.errors.join('；'));
     const result = rt.commitOps('bridge', ops, { target: snapshot.target });
     if (!result.ok) throw new Error(result.errors.join('；') || '保存失败，请刷新后重试。');
     return true;
@@ -107,6 +110,13 @@ export function createDataWorkbench(deps: DataWorkbenchDeps) {
         throw new Error('新行涉及受保护的行、列或单元格，请先解除对应锁定。');
       }
       const row = Object.fromEntries(snapshot.headers.slice(1).map((name, i) => [name, String(values[i] ?? '')]));
+      for (const column of table.ddlInfo?.columns || []) {
+        if (!column.unique || column.header === 'row_id' || !row[column.header]) continue;
+        const index = table.headers.indexOf(column.header);
+        for (const [id, cells] of table.rows) {
+          if (cells[index] === row[column.header]) throw new Error(`表「${table.name}」列「${column.header}」已存在值「${row[column.header]}」（row_id=${id}），唯一列不能重复`);
+        }
+      }
       return submit(snapshot, [{ kind: 'row_insert', table: table.tableId, row }]);
     }
     const before = snapshot.rows.get(rowId);

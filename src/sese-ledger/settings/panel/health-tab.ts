@@ -16,12 +16,12 @@ export function renderHealthTab(ctx: TabCtx, pane: HTMLElement): void {
   const list = el(doc, 'div', { class: 'slw-health-items' });
   if (!registered.length) list.appendChild(el(doc, 'div', { class: 'slw-annot' }, '尚未收到插件字段登记。状态栏和小手机需要支持字段契约的版本；它们下次读表或切换聊天时会再次登记。'));
   for (const item of health) {
-    const status = item.missing ? (!item.tablePresent ? '缺表' : '缺列') : '已找到';
+    const status = item.evaluated === false ? '未建账，尚未检查' : item.missing ? (!item.tablePresent ? '缺表' : '缺列') : '已找到';
     const classes = `slw-health-item ${item.missing || item.observedMissing ? 'bad' : ''}`;
     list.appendChild(el(doc, 'article', { class: classes }, `
       <b>${esc(item.label)} · ${esc(item.feature)}${item.required ? ' · 必需' : ' · 可选'}</b>
       <p><code>${esc(item.table)}${item.column ? ` · ${esc(item.column)}` : '（整表）'}</code>　${esc(status)}${item.required ? ' · 必需' : ' · 可选'}</p>
-      ${item.observedMissing ? `<p class="slw-muted">本次运行实际取数未找到，累计 ${item.missingCount} 次。</p>` : ''}`));
+      ${item.observedMissing ? `<p class="slw-muted">本次账本曾报告缺失，累计 ${item.missingCount} 次。</p>` : ''}`));
   }
   pane.appendChild(list);
   pane.querySelector('#slw-health-refresh')!.addEventListener('click', () => ctx.refresh('health'));

@@ -84,3 +84,26 @@ test('模板归一化不改调用方对象；字段注册保留两插件签名',
   fields.register([{ table: '在场角色表', column: '姓名', feature: '台账工作台', required: true }]);
   assert.equal(fields.list()[0].pluginId, 'n-sese-ledger');
 });
+
+test('整表改名也报告列消费者；未建账不判缺失，多功能诊断分别计数', async () => {
+  const { createFieldContractRegistry } = await load('field-contracts');
+  const { normalizeTemplateForApply, previewTemplateChange } = await load('template-preview');
+  const { createBook } = await load('book');
+  let book = null;
+  const fields = createFieldContractRegistry(() => book);
+  fields.register('bar', '状态栏', [{ table: '在场角色表', column: '姓名', feature: '立绘' }, { table: '在场角色表', column: '姓名', feature: '地图' }]);
+  assert(fields.health().every(item => item.evaluated === false && item.missing === false));
+  book = createBook(normalizeTemplateForApply(fixture()).workbook);
+  fields.reportMissing('bar', '在场角色表', '姓名', '立绘');
+  fields.reportMissing('bar', '在场角色表', '姓名', '地图');
+  assert.deepEqual(fields.health().map(item => item.missingCount), [1, 1]);
+  const next = fixture();
+  next.sheet_1.name = '改名后的表';
+  next.sheet_1.ledgerV2.name = '改名后的表';
+  const preview = previewTemplateChange(book, next, fields);
+  assert.equal(preview.ok, true);
+  assert.equal(preview.impacts.length, 2);
+  assert(preview.impacts.every(item => item.kind === 'rename' && item.to === '改名后的表'));
+  fields.reportMissing('bar', '在场角色表');
+  assert.deepEqual(fields.health().map(item => item.missingCount), [2, 2]);
+});

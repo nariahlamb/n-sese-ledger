@@ -541,15 +541,16 @@ export async function confirmSummaryGroupSplit(
 
 /** 结构/分组编辑统一收尾：**不落增量日志**（结构真源＝模板，见 src/sese-ledger/docs/台账增量语义与模板真源实施案.md §5）
  *  → 回写本聊天绑定模板（内置时自动另存派生预设并改绑）→ 刷新投影与表格页。 */
-export function commitTemplateEdit(ctx: TabCtx, notifyText?: string): void {
+export async function commitTemplateEdit(ctx: TabCtx, notifyText?: string): Promise<boolean> {
   const { deps } = ctx;
   const book = deps.runtime.book();
-  if (!book) return;
-  const result = deps.runtime.commitStructureSnapshot(projectWorkbook(book));
-  if (!result.ok) { deps.warn(result.errors.join('；') || '结构提交失败，账本未保存'); return; }
-  // 结构是聊天运行态；预览和记账不改变原有的模板写回时机。
+  if (!book || !deps.runtime.isChatSettled() || deps.runtime.isWriteProtected() || deps.canonical.fill?.isRunning?.()) { deps.warn('聊天未就绪或正在填表，结构未保存'); return false; }
+  try {
+    if (!await writeBackCurrentPreset(ctx)) { deps.warn('模板结构保存失败，请重试'); return false; }
+  } catch (_e) { deps.warn('模板结构保存失败，请重试'); return false; }
   ctx.structureChanged();
   if (notifyText) deps.notify(notifyText);
+  return true;
 }
 
 export const LEDGER_VERSION_LABEL = 'SeseLedger V2.031';
