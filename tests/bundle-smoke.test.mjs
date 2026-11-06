@@ -140,6 +140,26 @@ test('真实构建产物在无聊天的模拟酒馆中启动，不发送 AI 请�
       assert.equal(JSON.stringify(win.AutoCardUpdaterAPI.getTableTemplate({ scope: 'global' })), workbook);
       delete context.extensionSettings.sese_ledger_v1.templatePresets.跨卡模板;
       assert.equal(win.SeseLedgerAPI.templateBinding.name(), '台账标准模板', '预设删除后未回落内置模板');
+      const launcher = win.document.querySelector('.slw-launcher');
+      assert(launcher, '台账悬浮入口未挂载');
+      assert(launcher.classList.contains('slw-theme-light'), '默认未启用奶油手账日间主题');
+      assert(!launcher.classList.contains('slw-theme-dark'), '默认不应为夜间深色主题');
+      launcher.click();
+      const overlay = win.document.querySelector('.slw-root');
+      assert(overlay, '点击悬浮钮未打开工作台');
+      assert(overlay.classList.contains('slw-theme-light'), '工作台打开默认未启用奶油手账日间主题');
+      const themeBtn = overlay.querySelector('[data-act="theme"]');
+      assert(themeBtn, '工作台顶栏缺少主题切换按钮');
+      assert.equal(themeBtn.textContent, '☾ 夜间');
+      themeBtn.click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      assert(overlay.classList.contains('slw-theme-dark'), '点击主题按钮后未切到夜间深色');
+      assert.equal(savedSettings.sese_ledger_v1.theme, 'dark');
+      assert.equal(themeBtn.textContent, '☀ 日间');
+      themeBtn.click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      assert(overlay.classList.contains('slw-theme-light'), '再次点击主题按钮后未切回日间主题');
+      assert.equal(savedSettings.sese_ledger_v1.theme, 'light');
     }
     assert.equal(aiRequests, 0);
     assert.deepEqual(errors, [], '模拟启动出现错误日志');

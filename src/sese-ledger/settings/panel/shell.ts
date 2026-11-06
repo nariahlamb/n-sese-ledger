@@ -12,6 +12,7 @@ import { renderLogTab } from './log-tab';
 import { renderSettingsTab } from './settings-tab';
 import { renderMergeTab } from './merge-tab';
 import { summaryWarning } from '../../core/summary-warning';
+import { isDarkTheme } from '../../core/settings-store';
 
 export type { WorkbenchDeps } from './shared';
 export interface WorkbenchHost { open(tab?: TabKey): void; unmount(): void; refreshSettings(): void }
@@ -156,6 +157,30 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
       root.style.removeProperty('--slw-kb-h');
       root.style.removeProperty('--slw-kb-top');
     } catch (_e) { /* ignore */ }
+  }
+
+  /** 同步日间（奶油手账，默认）/ 夜间深色主题类与顶栏切换按钮文案。 */
+  function syncTheme(): void {
+    if (disposed) return;
+    const dark = isDarkTheme(deps.settings.get());
+    try {
+      const root = doc.documentElement;
+      root.classList.toggle('slw-theme-dark', dark);
+      root.classList.toggle('slw-theme-light', !dark);
+    } catch (_e) { /* ignore */ }
+    if (overlay) {
+      overlay.classList.toggle('slw-theme-dark', dark);
+      overlay.classList.toggle('slw-theme-light', !dark);
+      const btn = overlay.querySelector('[data-act="theme"]') as HTMLButtonElement | null;
+      if (btn) {
+        btn.textContent = dark ? '☀ 日间' : '☾ 夜间';
+        btn.title = dark ? '当前：夜间深色（点击切换为奶油手账日间主题）' : '当前：奶油手账日间（点击切换为夜间深色主题）';
+      }
+    }
+    if (launcher) {
+      launcher.classList.toggle('slw-theme-dark', dark);
+      launcher.classList.toggle('slw-theme-light', !dark);
+    }
   }
 
   /** 软键盘遮挡量：只在面板打开时挂监听，关闭即摘（手机侧同款 visualViewport 口径）。 */
@@ -341,6 +366,7 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
     bindLauncherDrag(btn, () => { suppressClickUntil = Date.now() + 600; });
     doc.body.appendChild(btn);
     launcher = btn;
+    syncTheme();
     syncLauncherFill(readFillState()?.running === true);
     restoreLauncherPos(btn);
   }
@@ -636,6 +662,7 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
           <div class="title">瑟瑟台账 · 工作台</div>
           <div class="meta">${esc(metaText)}</div>
         </div>
+        <button class="slw-theme-btn" type="button" data-act="theme"></button>
         <button class="close" data-act="close">关闭</button>
       </div>
       <div class="slw-fillbar" data-fill-bar hidden>
@@ -660,7 +687,15 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
     overlay.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       if (target === overlay) { close(); return; }
-      if (target.closest('[data-act="close"]')) close();
+      if (target.closest('[data-act="close"]')) { close(); return; }
+      if (target.closest('[data-act="theme"]')) {
+        const nextTheme = isDarkTheme(deps.settings.get()) ? 'light' : 'dark';
+        void deps.settings.update({ theme: nextTheme }).then(() => {
+          syncTheme();
+          if (overlay && activeTab === 'settings') renderPane('settings');
+        });
+        return;
+      }
       if (target.closest('[data-act="merge"]')) { activate('merge'); return; }
       const terminateFillBtn = target.closest('[data-act="terminate-fill"]') as HTMLButtonElement | null;
       if (terminateFillBtn) {
@@ -673,6 +708,7 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
       if (railBtn) activate((railBtn as HTMLElement).dataset.tab as TabKey);
     });
     doc.body.appendChild(overlay);
+    syncTheme();
     // 面板打开＝有顶部横幅指示；暂停悬浮钮动画（它在遮罩之下，继续播放只是空转）。
     syncLauncherFill(readFillState()?.running === true);
     // 先按容器宽度定紧凑/卡片/全屏类，再渲染首屏（说明块折叠依赖该状态）
@@ -695,15 +731,17 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
   }
 
   const onReady = (): void => {
+    syncTheme();
     renderLauncher();
     registerExtensionMenuEntry();
   };
   if (doc.body) onReady();
   else doc.addEventListener('DOMContentLoaded', onReady, { once: true });
 
-  // 设置页切换「悬浮按钮」开关后重挂（事件经 deps.window 广播）
+  // 设置页切换「悬浮按钮」开关或主题后同步（事件经 deps.window 广播）
   try {
     deps.window.addEventListener?.('slw-render-launcher', renderLauncher as EventListener);
+    deps.window.addEventListener?.('slw-theme-change', syncTheme as EventListener);
   } catch (_e) { /* ignore */ }
 
   // 日志错误计数徽标：写日志 / 点错误条目 / 清空即时刷新（面板未打开时 renderLogBadge 早退，零渲染开销）
@@ -740,6 +778,7 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
         resizeBound = false;
       }
       close();
+      try { doc.documentElement.classList.remove('slw-theme-dark', 'slw-theme-light'); } catch (_e) { /* ignore */ }
       launcher?.remove();
       launcher = null;
       removeExtensionMenuEntry();
@@ -749,6 +788,7 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
       try { summaryMergeUnsub?.(); } catch (_e) { /* ignore */ }
       try { deps.window.removeEventListener?.('slw-summary-warn-refresh', summaryWarnRefreshHandler as EventListener); } catch (_e) { /* ignore */ }
       try { deps.window.removeEventListener?.('slw-render-launcher', renderLauncher as EventListener); } catch (_e) { /* ignore */ }
+      try { deps.window.removeEventListener?.('slw-theme-change', syncTheme as EventListener); } catch (_e) { /* ignore */ }
     },
   };
 }

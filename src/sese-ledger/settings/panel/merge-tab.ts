@@ -257,7 +257,7 @@ function actionsHtml(plan: { ok: true; plan: SummaryMergePlan } | { ok: false; e
       + `<p><span class="num">${r?.before ?? 0} → ${r?.after ?? 0}</span> 条</p>`
       + `<p>成功 ${r?.success ?? 0} 段；失败 ${r?.failed ?? 0} 段、未执行 ${r?.skipped ?? 0} 段保留原条目。</p>`
       + `<p>AM 编号已重排为连续；合并标记已更新。</p>`
-      + `<p style="color:#e0c07a">继续推进对话即可，无需重填纪要表。</p></div>`
+      + `<p style="color:var(--gold-dim)">继续推进对话即可，无需重填纪要表。</p></div>`
       + `<div class="slw-merge-actions"><span class="spacer"></span><button class="slw-btn primary" type="button" data-merge-action="reset">开始新的合并</button></div>`;
   }
   if (state.phase === 'running') {

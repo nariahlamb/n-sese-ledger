@@ -1,6 +1,6 @@
 // ===== 设置标签页：开关 · API 来源卡（跟随主项目）· 高级调度参数（引擎诊断已并入「日志」页） =====
 import { esc, el, downloadJsonFile, pickJsonFile, confirmDialog } from './shared';
-import { isDriverEnabled, isProgressPersistEnabled } from '../../core/settings-store';
+import { isDarkTheme, isDriverEnabled, isProgressPersistEnabled } from '../../core/settings-store';
 import { groupsOf, isStoppedGroup } from '../../core/book';
 import { DEFAULT_FILL_MAX_ATTEMPTS, FILL_MAX_ATTEMPTS_LIMIT, resolveFillMaxAttempts } from '../../core/scribe';
 import { summaryWarning, summaryWarnThresholdOf } from '../../core/summary-warning';
@@ -14,11 +14,18 @@ export function renderSettingsTab(ctx: TabCtx, pane: HTMLElement): void {
   // ── 开关 ──
   const switchCard = el(doc, 'div', { class: 'slw-card' }, `
     <h3>开关</h3>
+    <div class="slw-row"><label>日间主题</label><span class="slw-switch ${!isDarkTheme(s) ? 'on' : ''}" id="slw-s-theme-light"></span><span class="slw-muted">默认开（奶油手账配色）；关闭后切换为深色主题，工作台顶栏右侧也可一键切换</span></div>
     <div class="slw-row"><label>自动填表</label><span class="slw-switch ${s.autoFillEnabled !== false ? 'on' : ''}" id="slw-s-auto"></span><span class="slw-muted">AI 回复落楼后按分组频率自动填表</span></div>
     <div class="slw-row"><label>剧情推进</label><span class="slw-switch ${isDriverEnabled(s) ? 'on' : ''}" id="slw-s-driver"></span><span class="slw-muted">默认开；关闭后不再拦截用户发送做规划改写（三入口 + 防回环），并撤除聊天显示正则</span></div>
     <div class="slw-row"><label>填表/推进持久化</label><span class="slw-switch ${isProgressPersistEnabled(s) ? 'on' : ''}" id="slw-s-progress-persist"></span><span class="slw-muted">默认关；关闭后填表/推进进度通知显示 3 秒即自动隐去（错误告警仍常驻；工作台顶部「填表进行中」横幅不受影响）</span></div>
     <div class="slw-row"><label>悬浮按钮</label><span class="slw-switch ${s.showLauncher !== false ? 'on' : ''}" id="slw-s-launcher"></span><span class="slw-muted">关闭后仍可从酒馆扩展菜单（魔杖图标）打开工作台</span></div>`);
   pane.appendChild(switchCard);
+  switchCard.querySelector('#slw-s-theme-light')!.addEventListener('click', async (e) => {
+    const next = !(e.target as HTMLElement).classList.contains('on');
+    (e.target as HTMLElement).classList.toggle('on', next);
+    await deps.settings.update({ theme: next ? 'light' : 'dark' });
+    try { deps.window.dispatchEvent(new CustomEvent('slw-theme-change')); } catch (_e) { /* ignore */ }
+  });
   switchCard.querySelector('#slw-s-auto')!.addEventListener('click', async (e) => {
     const next = !(e.target as HTMLElement).classList.contains('on');
     (e.target as HTMLElement).classList.toggle('on', next);

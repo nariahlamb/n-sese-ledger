@@ -28,6 +28,8 @@ export interface LedgerSettings {
   plotPresets?: Record<string, unknown>;
   /** 悬浮入口按钮显示（默认开）。 */
   showLauncher?: boolean;
+  /** 工作台界面主题：light=日间（奶油手账，默认）；dark=夜间深色。 */
+  theme?: 'light' | 'dark';
   /** 填表/推进进度通知持久化（默认开；显式 false＝显示 3 秒后自动隐去，避免遮挡；失败告警恒常驻）。 */
   progressPersist?: boolean;
   /** API 来源：''=跟随主项目全局；否则指定主项目预设 id。（apiPreset 旧直连三输入框已退役，字段忽略。）
@@ -72,6 +74,11 @@ export function isDriverEnabled(s: LedgerSettings): boolean {
 /** 填表/推进进度通知是否常驻：默认关（未设置/显式 false 都自动隐去），只有显式 true 才常驻。 */
 export function isProgressPersistEnabled(s: LedgerSettings): boolean {
   return s.progressPersist === true;
+}
+
+/** 工作台是否为深色主题：默认日间（奶油手账），仅显式 'dark' 时启用深色。 */
+export function isDarkTheme(s: LedgerSettings): boolean {
+  return s.theme === 'dark';
 }
 
 export interface SettingsDeps {
