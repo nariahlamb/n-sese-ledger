@@ -150,6 +150,8 @@ export interface LedgerRuntime {
   restoreInMemory(data: WorkbookJson): boolean;
   /** 结构直写（模板切换/修复/导入：全量快照 + 结构变更记账）。 */
   commitSnapshotReplace(source: LedgerSource, data: WorkbookJson, opts?: { notify?: boolean }): CommitResult;
+  /** 表格页结构变更：不可逐格否决，只能回滚本层。 */
+  commitStructureSnapshot(data: WorkbookJson): CommitResult;
   /** 条目数过阈即结转（外部事件驱动）。 */
   foldIfNeeded(): Promise<boolean>;
   /** 手动「全部折叠」：把当前全部活跃增量一次折进快照并清空流水（保留窗口＝0）。 */
@@ -890,6 +892,11 @@ export function createLedgerRuntime(deps: {
     return { ok: errors.length === 0, changedTables, errors, entry, at: scope };
   }
 
+  function commitStructureSnapshot(data: WorkbookJson): CommitResult {
+    if (loadBlocked) return { ok: false, changedTables: [], errors: ['台账处于只读保护，结构未修改'], entry: null };
+    return commitSnapshotReplace('bridge', data);
+  }
+
   /** 结构直写：data_replace 语义（模板导入/修复/迁移收尾）。只落记账条目不直写快照——
    *  条目随楼层回退自然裁剪（快照直写会突破楼层语义：删楼后状态回不去）。 */
   function commitSnapshotReplace(source: LedgerSource, data: WorkbookJson, opts?: { notify?: boolean }): CommitResult {
@@ -907,7 +914,7 @@ export function createLedgerRuntime(deps: {
       seq,
       at: { anchor: scope.anchor, aiFloor: scope.aiFloor },
       source,
-      ops: [{ kind: 'data_replace', data }],
+      ops: [{ kind: 'data_replace', data: JSON.parse(JSON.stringify(projectWorkbook(fresh))) }],
       changedTables,
       atTime: now(),
     };
@@ -1428,6 +1435,7 @@ export function createLedgerRuntime(deps: {
     clearCurrentChatData,
     restoreInMemory,
     commitSnapshotReplace,
+    commitStructureSnapshot,
     foldIfNeeded,
     foldAll,
     revision: () => revision,

@@ -67,7 +67,7 @@ export function renderTimeMachineTab(ctx: TabCtx, pane: HTMLElement): void {
     const f = timeline.find((x) => x.aiFloor === floor) || null;
     selected = f;
     selectedChecks.clear();
-    diffs = f && !f.folded ? (tm.diffAtFloor(floor) || []) : [];
+    diffs = f && !f.folded && !f.structureOnly ? (tm.diffAtFloor(floor) || []) : [];
     syncSelectedClass();
     renderRight();
   }
@@ -78,12 +78,12 @@ export function renderTimeMachineTab(ctx: TabCtx, pane: HTMLElement): void {
       right.appendChild(el(doc, 'div', { class: 'slw-card' }, '<h3>填表审核</h3><div class="slw-muted">在左侧选择一个楼层查看该层改动。</div>'));
       return;
     }
-    const groups = selected.folded ? [] : groupDiffsByTable(diffs);
+    const groups = selected.folded || selected.structureOnly ? [] : groupDiffsByTable(diffs);
     const auditCard = el(doc, 'div', { class: 'slw-card' }, `
       <h3 style="display:flex;align-items:center;flex-wrap:wrap">楼 ${selected.aiFloor} · 填表审核 <span class="desc">按表折叠；勾选后点「否决选中项」——否决以补偿记录实现，不改写历史</span>${groups.length > 0 ? '<button type="button" class="slw-btn sm" id="slw-tm-collapse-all" style="margin-left:auto">折叠全部</button>' : ''}</h3>
       ${selected.folded
         ? '<div class="slw-annot">该层已折叠进快照（结转点之前），仅可查看快照，不可逐格否决。</div>'
-        : groups.map((g) => (
+        : selected.structureOnly ? '<div class="slw-annot">本层含整体结构变更，不能只撤销其中一格。请用「仅回滚本层」或导出该层数据核对。</div>' : groups.map((g) => (
         `<details class="slw-tm-group" open>
           <summary>${esc(g.table)}<span class="slw-muted">（${g.items.length} 处改动）</span></summary>
           <table class="slw-tbl slw-tbl-fixed slw-responsive">
@@ -104,8 +104,8 @@ export function renderTimeMachineTab(ctx: TabCtx, pane: HTMLElement): void {
           </table>
         </details>`)).join('') || '<div class="slw-muted">该层无逐格变化（结构变更或纯增删已折叠）。</div>'}
       <div class="slw-row" style="margin-top:10px">
-        <button class="slw-btn" id="slw-tm-all">全选本层改动</button><button class="slw-btn" id="slw-tm-none">取消选择</button>
-        <button class="slw-btn primary" id="slw-tm-veto-sel">否决选中项（${selectedChecks.size}）</button><button class="slw-btn danger" id="slw-tm-veto-all">否决本层全部改动</button>
+        <button class="slw-btn" id="slw-tm-all" ${selected.structureOnly ? 'disabled' : ''}>全选本层改动</button><button class="slw-btn" id="slw-tm-none" ${selected.structureOnly ? 'disabled' : ''}>取消选择</button>
+        <button class="slw-btn primary" id="slw-tm-veto-sel" ${selected.structureOnly ? 'disabled' : ''}>否决选中项（${selectedChecks.size}）</button><button class="slw-btn danger" id="slw-tm-veto-all" ${selected.structureOnly ? 'disabled' : ''}>否决本层全部改动</button>
       </div>
       <div class="slw-row">
         <button class="slw-btn danger" id="slw-tm-rollback-refill">回滚本层并重新填表</button><button class="slw-btn" id="slw-tm-rollback">仅回滚本层</button><button class="slw-btn" id="slw-tm-export">导出这一层数据</button>

@@ -4,6 +4,8 @@
 // + 右内容区。各标签页渲染函数在同目录 *-tab.ts；结构变更（模板/分组编辑等）后调用 refresh('tables') 局部重渲。
 import { WORKBENCH_CSS, el, esc, workbenchDoc, decorateAnnotations, decorateCollapsibleCards, closeTransientDialogs, type WorkbenchDeps } from './shared';
 import { renderTablesTab } from './tables-tab';
+import { renderDataTab } from './data-tab';
+import { renderHealthTab } from './health-tab';
 import { renderFillTab } from './fill-tab';
 import { renderPlotTab } from './plot-tab';
 import { renderTimeMachineTab } from './time-machine-tab';
@@ -26,7 +28,7 @@ export interface TabCtx {
   structureChanged(): void;
 }
 
-export type TabKey = 'tables' | 'fill' | 'plot' | 'tm' | 'merge' | 'migrate' | 'log' | 'settings';
+export type TabKey = 'data' | 'health' | 'tables' | 'fill' | 'plot' | 'tm' | 'merge' | 'migrate' | 'log' | 'settings';
 
 /** 填表运行状态（canonical.fill.getState/subscribe 的返回形状；只取横幅需要的字段）。 */
 interface FillBarState {
@@ -443,6 +445,11 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
     // 面板内的对话框（分组成员/建表向导等）直挂宿主 body 且带全屏遮罩——关面板时一并清掉，
     // 否则残留遮罩（z-index 10040）会继续挡住宿主页面输入。
     const activePane = overlay?.querySelector('.slw-pane.on') as HTMLElement | null;
+    for (const pane of overlay?.querySelectorAll('.slw-pane') || []) {
+      const cleanup = (pane as any).__slwCleanup;
+      if (typeof cleanup === 'function') { try { cleanup(); } catch (_e) { /* ignore */ } }
+      (pane as any).__slwCleanup = undefined;
+    }
     const cleanup = (activePane as any)?.__slwCleanup;
     if (typeof cleanup === 'function') {
       try { cleanup(); } catch (_e) { /* ignore */ }
@@ -467,7 +474,9 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
   }
 
   const TAB_DEFS: { key: TabKey; icon: string; label: string }[] = [
+    { key: 'data', icon: '☷', label: '数据' },
     { key: 'tables', icon: '▦', label: '表格' },
+    { key: 'health', icon: '✓', label: '字段健康' },
     { key: 'fill', icon: '✎', label: '填表' },
     { key: 'plot', icon: '▶', label: '推进' },
     { key: 'tm', icon: '⏱', label: '时光机' },
@@ -587,13 +596,15 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
         // 「未变更跳过门」吃掉 ⇒ 世界书要等下一条消息落账才收敛，而那一轮生成已用了旧投影。
         // 结构编辑是低频用户点击，force 只多一次 getWorldbook + 重建比对，直接强制刷新。
         void deps.refreshWorldbook({ force: true });
-        if (overlay && activeTab === 'tables') renderPane('tables');
+        if (overlay) renderPane(activeTab);
       },
     };
   }
 
   const RENDERERS: Record<TabKey, (ctx: TabCtx, pane: HTMLElement) => void> = {
+    data: renderDataTab,
     tables: renderTablesTab,
+    health: renderHealthTab,
     fill: renderFillTab,
     plot: renderPlotTab,
     tm: renderTimeMachineTab,

@@ -8,30 +8,11 @@ import type { WorkbookJson } from './types';
 import type { LedgerRuntime } from './runtime';
 import { executeSqlSubset, splitStatements, stripComments } from './sql-subset';
 import { projectWorkbook, resolveColumn, resolveTable, workbookSignatures, type TableModel } from './book';
-import { convergeBookToTemplate, normalizeTemplate, normalizeTemplateAny } from './blueprint';
+import { convergeBookToTemplate } from './blueprint';
+import { normalizeTemplateForApply } from './template-preview';
 import type { SettingsStore } from './settings-store';
 import { createGuards, type Guards } from './guards';
 import { aiFloorOrdinalAt, writeScope } from './floor-scope';
-
-/** 模板归一化统一口径：
- *  - v2 模板（schemaVersion:2）→ 校验 + 投影；
- *  - v1/v2 混合 workbook（sheet 带 ledgerV2，如修复链路回灌的结构）→ v1 结构校验直通（保 v2 def 不再转换）；
- *  - 纯 v1（数据库模板 JSON）→ 转换为 v2（readMode/分组/注入极简化）。 */
-function normalizeForApply(tpl: unknown): { ok: boolean; errors: string[]; workbook: WorkbookJson | null } {
-  if (tpl && typeof tpl === 'object' && (tpl as any).schemaVersion === 2) {
-    const normalized = normalizeTemplateAny(tpl);
-    return { ok: normalized.ok, errors: normalized.errors, workbook: normalized.workbook };
-  }
-  const raw = tpl as WorkbookJson | null;
-  const sheetKeys = raw && typeof raw === 'object' ? Object.keys(raw).filter((k) => k.startsWith('sheet_')) : [];
-  if (sheetKeys.length > 0 && sheetKeys.every((k) => (raw as any)[k]?.ledgerV2 && Array.isArray((raw as any)[k].ledgerV2.columns))) {
-    const v1 = normalizeTemplate(raw);
-    if (v1.ok && v1.template) return { ok: true, errors: [], workbook: v1.template };
-    return { ok: false, errors: v1.errors, workbook: null };
-  }
-  const normalized = normalizeTemplateAny(tpl);
-  return { ok: normalized.ok, errors: normalized.errors, workbook: normalized.workbook };
-}
 
 export interface LegacyFaceDeps {
   runtime: LedgerRuntime;
@@ -201,7 +182,7 @@ export function createLegacyFace(deps: LegacyFaceDeps) {
     if (scope === 'global') {
       const name = presetName || deps.settings.get().currentTemplatePreset || deps.standardPresetName;
       const preset = name === deps.standardPresetName ? deps.standardTemplate : deps.settings.loadTemplatePreset(name);
-      const normalized = preset ? normalizeForApply(preset) : null;
+      const normalized = preset ? normalizeTemplateForApply(preset) : null;
       return (normalized && normalized.ok ? normalized.workbook : null) || deps.standardTemplate;
     }
     if (scope === 'runtime') return rt.book() ? projectWorkbook(rt.book()!) : null;
@@ -465,7 +446,7 @@ export function createLegacyFace(deps: LegacyFaceDeps) {
           return { success: false, scope, message: '模板 JSON 解析失败', dataMode: o.dataMode, conflictPolicy: o.conflictPolicy, deduplication: [], error: '模板 JSON 解析失败' };
         }
       }
-      const normalized = normalizeForApply(tpl);
+      const normalized = normalizeTemplateForApply(tpl);
       if (!normalized.ok || !normalized.workbook) {
         return { success: false, scope, message: '模板结构校验失败：' + normalized.errors.join('；'), dataMode: o.dataMode, conflictPolicy: o.conflictPolicy, deduplication: [], error: normalized.errors.join('；') };
       }

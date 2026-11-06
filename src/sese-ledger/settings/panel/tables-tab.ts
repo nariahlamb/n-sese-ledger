@@ -8,6 +8,7 @@ import { resolveFillMaxAttempts } from '../../core/scribe';
 import { describeErrorDetail, describeErrorSummary } from '../../core/error-detail';
 import { summaryWarning } from '../../core/summary-warning';
 import type { LedgerGroupDef, LedgerSheetDef } from '../../core/types';
+import { applyTemplateWithPreview, confirmStructureImpacts, confirmStructurePreview } from './template-apply';
 
 /** 纪要表判定（硬约束：纪要表不允许进入频率 0 的停用组）——名称/特殊形态单出口。 */
 function isSummaryTable(t: TableModel): boolean {
@@ -93,8 +94,8 @@ export function renderTablesTab(ctx: TabCtx, pane: HTMLElement): void {
       if (!ok) { (e.target as HTMLSelectElement).value = currentLabel; return; }
     }
     // 交由既有链路统一归一化：v2 直通 / 纯 v1 自动转换 / 带 ledgerV2 的 workbook 走直通分支
-    const r = await deps.canonical.applyBlueprint(isStandard ? deps.canonical.standardTemplateWorkbook : loaded, { scope: 'chat' });
-    if (r?.success === false) { deps.warn(r?.message || '模板套用失败'); return; }
+    const applied = await applyTemplateWithPreview(ctx, isStandard ? deps.canonical.standardTemplateWorkbook : loaded, value);
+    if (applied !== 'applied') { (e.target as HTMLSelectElement).value = currentLabel; return; }
     const bindResult = await deps.canonical.templateBinding?.set?.(value);
     if (bindResult && bindResult.ok === false) deps.warn(bindResult.message);
     else deps.notify(bindResult?.message || `已套用模板「${value}」（当前聊天）`);
@@ -193,6 +194,9 @@ export function renderTablesTab(ctx: TabCtx, pane: HTMLElement): void {
       if (!target) return;
       // 特殊表（人物关系表 / 纪要表）禁删：形态由引擎特判，删了流水线直接缺口（按钮已 disabled，此处兜底）
       if (specialFormOf(target.name, target.v2def)) { deps.warn(`「${target.name}」是特殊表（引擎特判形态），禁止删除`); return; }
+      const deleting = projectWorkbook(book);
+      delete deleting[id];
+      if (!await confirmStructurePreview(ctx, deleting, `删除表「${target.name}」`)) return;
       if (!await confirmDialog(deps, `删除表「${target.name}」（${target.rows.size} 行数据一并删除，不可恢复）？\n当前所选预设（如有）同步更新。`, { okText: '删除表', danger: true })) return;
       book.tables.delete(id);
       commitTemplateEdit(ctx, `表「${target.name}」已删除`);
@@ -307,25 +311,22 @@ async function importTemplateJson(ctx: TabCtx): Promise<void> {
     return;
   }
   const reportText = ['转换报告：', ...normalized.report].join('\n');
-  if (!await confirmDialog(deps, reportText + '\n\n确认导入并套用到当前聊天？', { okText: '导入并套用' })) return;
+  if (!await confirmDialog(deps, reportText + '\n\n确认导入这份模板？下一步会预览对当前聊天的影响。', { okText: '继续预览' })) return;
   if (!await confirmSummaryGroupSplit(ctx, summaryGroupAssignmentsOfV2(normalized.v2), normalized.v2.groups || [])) return;
   const name = await promptDialog(deps, '保存为预设名：', '导入模板 ' + new Date().toISOString().slice(5, 10), { okText: '导入' });
   if (name === null) return; // 点取消 = 中止整个导入，不能继续套用（E6）
   await deps.settings.saveTemplatePreset(name || '导入模板', JSON.stringify(normalized.v2));
   const bindResult = await deps.canonical.templateBinding?.set?.(name || '导入模板');
   if (bindResult && bindResult.ok === false) deps.warn(bindResult.message);
-  const r = await deps.canonical.applyBlueprint(normalized.workbook, { scope: 'chat' });
-  if (r?.success !== false) deps.notify('模板已导入并套用');
-  else deps.warn(r?.message || '套用失败');
+  const applied = await applyTemplateWithPreview(ctx, normalized.workbook, name || '导入模板');
+  if (applied === 'applied') deps.notify('模板已导入并套用');
   ctx.structureChanged();
 }
 
 async function applyBlankTemplate(ctx: TabCtx): Promise<void> {
   const { deps } = ctx;
-  if (!await confirmDialog(deps, '新建空白模板：丢弃当前聊天的全部表结构与数据行（模板外内容一律丢弃，不可恢复）？建议先「另存为预设」或「导出 JSON」备份。', { okText: '新建空白模板', danger: true })) return;
   const blank = { schemaVersion: 2, name: '空白模板', groups: [{ id: 1, name: '分组1', frequency: 1 }], tables: [] };
-  const r = await deps.canonical.applyBlueprint(blank, { scope: 'chat' });
-  if (r?.success === false) { deps.warn(r?.message || '套用失败'); return; }
+  if (await applyTemplateWithPreview(ctx, blank, blank.name) !== 'applied') return;
   const names = new Set(deps.settings.listTemplatePresetNames());
   let name = blank.name;
   let suffix = 2;
@@ -766,7 +767,7 @@ function openTableDrawer(ctx: TabCtx, tableId: string | null): void {
       commitTemplateEdit(ctx, `表「${def.name}」已新增`);
       return;
     }
-    // 套用：整本模板重建 + 收敛器（列改名认领/新增列补空/模板外列丢弃）
+    // 套用：整本模板重建 + 收敛器（列改名认领/新增列补空/模板外列丢弃）。
     const originalColumns = table!.v2def!.columns.map((c) => c.header);
     const removedColumns = originalColumns.filter((h) => !def.columns.some((c) => c.header === h));
     if (def.lensForm !== 'summary' && removedColumns.length > 0) {
@@ -779,6 +780,7 @@ function openTableDrawer(ctx: TabCtx, tableId: string | null): void {
     sheet.content = [['row_id', ...def.columns.map((c) => c.header)]];
     sheet.ledgerV2 = def;
     (workbook.mate as any).ledgerGroups = groups;
+    if (!await confirmStructurePreview(ctx, workbook, `保存表「${table!.name}」`)) return;
     convergeBookToTemplate(book, workbook);
     syncV2UpdateConfigs(book);
     closeDrawer();
@@ -1033,6 +1035,7 @@ function openWizardDialog(ctx: TabCtx): void {
     const sheet = wizardDefToSheet(generated);
     const workbook = projectWorkbook(book);
     workbook[sheet.uid as string] = sheet;
+    if (!await confirmStructurePreview(ctx, workbook, `套用建表向导「${generated.name}」`)) return;
     convergeBookToTemplate(book, workbook);
     syncV2UpdateConfigs(book);
     close();

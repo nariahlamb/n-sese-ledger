@@ -21,6 +21,7 @@ export interface TimelineFloor {
   opCount: number;
   /** 结转点之前（条目已折叠，仅可查看快照）。 */
   folded: boolean;
+  structureOnly: boolean;
 }
 
 export interface CellDiff {
@@ -67,11 +68,12 @@ export function buildFloorTimeline(entries: LedgerEntry[], foldBoundary: number 
     if (floor <= 0) continue;
     let item = byFloor.get(floor);
     if (!item) {
-      item = { aiFloor: floor, anchor: String(e.at?.anchor || ''), time: Number(e.atTime || 0), tables: [], opCount: 0, folded: false };
+      item = { aiFloor: floor, anchor: String(e.at?.anchor || ''), time: Number(e.atTime || 0), tables: [], opCount: 0, folded: false, structureOnly: false };
       byFloor.set(floor, item);
     }
     item.time = Math.max(item.time, Number(e.atTime || 0));
     item.opCount += (e.ops || []).length;
+    if (e.source === 'bridge' && (e.ops || []).some(op => op.kind === 'data_replace')) item.structureOnly = true;
     for (const t of e.changedTables || []) {
       if (!item.tables.includes(t)) item.tables.push(t);
     }
@@ -186,6 +188,10 @@ export function createTimeMachine(deps: TimeMachineDeps) {
   }
 
   /** 结转边界：条目已折叠时 = 快照折叠楼序；条目还在 = null（无折叠）。 */
+  function floor(aiFloor: number): TimelineFloor | null { return timeline().find(item => item.aiFloor === aiFloor) || null; }
+
+
+
   function foldBoundary(): number | null {
     const store = rt.__store();
     if (!store) return null;
@@ -200,6 +206,7 @@ export function createTimeMachine(deps: TimeMachineDeps) {
 
   /** 相邻层 diff（n vs n-1；烘焙失败返回 null）。 */
   function diffAtFloor(aiFloor: number): CellDiff[] | null {
+    if (floor(aiFloor)?.structureOnly) return null;
     const before = bakedAt(aiFloor - 1);
     const after = bakedAt(aiFloor);
     if (!before || !after) return null;
@@ -208,7 +215,7 @@ export function createTimeMachine(deps: TimeMachineDeps) {
 
   /** 否决选中项：补偿记录落最新楼。 */
   function veto(aiFloor: number, diffs: CellDiff[]): boolean {
-    if (diffs.length === 0) return false;
+    if (diffs.length === 0 || floor(aiFloor)?.structureOnly) return false;
     const before = bakedAt(aiFloor - 1);
     if (!before) {
       deps.warn('否决失败：无法还原该层之前的状态（可能已折叠）');
@@ -226,5 +233,5 @@ export function createTimeMachine(deps: TimeMachineDeps) {
     return bakedAt(aiFloor);
   }
 
-  return { foldBoundary, timeline, diffAtFloor, veto, exportFloor };
+  return { foldBoundary, timeline, floor, diffAtFloor, veto, exportFloor };
 }

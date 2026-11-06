@@ -16,6 +16,7 @@ import { createSillyChatMetadataHost } from '../unified-statusbar/core/silly-cha
 import { UB_EVENT } from '../unified-statusbar/core/events';
 import type { LedgerIndexFile, WorkbookJson } from './core/types';
 import { createLedgerRuntime } from './core/runtime';
+import { createFieldContractRegistry } from './core/field-contracts';
 import { createLegacyFace } from './core/legacy-face';
 import { createExtensionSettingsStore, isDriverEnabled, isProgressPersistEnabled } from './core/settings-store';
 import { INDEX_FILE_NAME } from './core/identity';
@@ -840,6 +841,7 @@ export function bootLedger(): { dispose: () => Promise<void> } {
     __legacyFace: face,
     /** 外部模块（状态栏/小手机）上报操作失败到工作台日志；source 非六类时自动归「其他」。
      *  低频失败专用——调用方不得在成功路径逐笔上报。 */
+    fieldContracts: createFieldContractRegistry(() => runtime.book()),
     reportIssue(level: 'error' | 'warn' | 'info', source: string, message: string, detail?: string): void {
       ledgerLog.push(level, source, message, detail);
     },

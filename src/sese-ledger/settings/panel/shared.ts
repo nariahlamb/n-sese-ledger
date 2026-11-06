@@ -47,7 +47,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K,
 }
 
 /** 下载 JSON（导出用）。锚点建在**工作台宿主文档**（parent），不在隐藏 iframe 里触发下载。 */
-export function downloadJsonFile(deps: WorkbenchDeps, filename: string, value: unknown): void {
+export function downloadJsonFile(deps: WorkbenchDeps, filename: string, value: unknown): boolean {
   try {
     const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -57,9 +57,11 @@ export function downloadJsonFile(deps: WorkbenchDeps, filename: string, value: u
     a.download = filename;
     doc.body.appendChild(a);
     a.click();
-    setTimeout(() => a.remove(), 1000);
+    a.remove();
+    if (a.isConnected) throw new Error('下载链接未能发起');
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-  } catch (_e) { /* ignore */ }
+    return true;
+  } catch (_e) { return false; }
 }
 
 /** 读本地 JSON 文件（导入用）。input 建在**工作台宿主文档**，避免隐藏 iframe 在移动端被拦截。
@@ -543,8 +545,9 @@ export function commitTemplateEdit(ctx: TabCtx, notifyText?: string): void {
   const { deps } = ctx;
   const book = deps.runtime.book();
   if (!book) return;
-  void writeBackCurrentPreset(ctx);
-  // 单次重渲：structureChanged 已在表格页激活时 renderPane('tables')（G2）。
+  const result = deps.runtime.commitStructureSnapshot(projectWorkbook(book));
+  if (!result.ok) { deps.warn(result.errors.join('；') || '结构提交失败，账本未保存'); return; }
+  // 结构是聊天运行态；预览和记账不改变原有的模板写回时机。
   ctx.structureChanged();
   if (notifyText) deps.notify(notifyText);
 }
