@@ -476,7 +476,6 @@ export function mountWorkbenchPanel(deps: WorkbenchDeps): WorkbenchHost {
   const TAB_DEFS: { key: TabKey; icon: string; label: string }[] = [
     { key: 'data', icon: '☷', label: '数据' },
     { key: 'tables', icon: '▦', label: '表格' },
-    { key: 'health', icon: '✓', label: '字段健康' },
     { key: 'fill', icon: '✎', label: '填表' },
     { key: 'plot', icon: '▶', label: '推进' },
     { key: 'tm', icon: '⏱', label: '时光机' },

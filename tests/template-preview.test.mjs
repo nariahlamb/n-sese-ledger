@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const result = await build({ absWorkingDir: root, entryPoints: ['src/sese-ledger/core/template-preview.ts', 'src/sese-ledger/core/book.ts', 'src/sese-ledger/core/field-contracts.ts'], bundle: true, write: false, format: 'esm', platform: 'node', outdir: 'out', logLevel: 'silent' });
-const load = name => import(`data:text/javascript;base64,${Buffer.from(result.outputFiles.find(file => file.path.endsWith(`/${name}.js`)).text).toString('base64')}`);
+const load = name => import(`data:text/javascript;base64,${Buffer.from(result.outputFiles.find(file => file.path.replace(/\\/g, '/').endsWith(`/${name}.js`)).text).toString('base64')}`);
 const { previewTemplateChange, templatePreviewLines } = await load('template-preview');
 const { createBook, projectWorkbook } = await load('book');
 const { createFieldContractRegistry } = await load('field-contracts');

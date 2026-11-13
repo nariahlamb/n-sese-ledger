@@ -170,6 +170,24 @@ test('数据页分页只渲染 30 行，搜索保留选表和页码，订阅在�
   const u = uiFixture();
   try {
     assert.equal(u.pane.querySelectorAll('tbody tr').length, 30);
+    assert.equal(u.pane.querySelectorAll('[data-table-tab]').length, 1);
+    assert.equal(u.pane.querySelector('[data-table-tab].on').dataset.tableTab, 'sheet_demo');
+    assert(u.pane.querySelector('th.col-short'), '短字段应分配 col-short 类');
+    assert(u.pane.querySelector('th.col-long'), '备注字段应分配 col-long 类');
+    // 电脑端表格横向溢出时，垂直滚轮驱动横向滚动并在到达边界时放行
+    const gridWrap = u.pane.querySelector('[data-list]');
+    Object.defineProperty(u.dom.window, 'innerWidth', { value: 1280, configurable: true });
+    Object.defineProperty(gridWrap, 'scrollWidth', { value: 1200, configurable: true });
+    Object.defineProperty(gridWrap, 'clientWidth', { value: 600, configurable: true });
+    gridWrap.scrollLeft = 0;
+    const evForward = new u.dom.window.WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    gridWrap.dispatchEvent(evForward);
+    assert.equal(gridWrap.scrollLeft, 120);
+    assert.equal(evForward.defaultPrevented, true);
+    gridWrap.scrollLeft = 600;
+    const evEnd = new u.dom.window.WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    gridWrap.dispatchEvent(evEnd);
+    assert.equal(evEnd.defaultPrevented, false);
     assert.equal(u.updates.size, 1); assert.equal(u.fills.size, 1);
     u.pane.querySelector('[data-next]').click();
     api.renderDataTab(u.ctx, u.pane);
@@ -257,7 +275,7 @@ test('真实运行时：手动行修改在目标 AI 楼被删除后按锚点裁�
 
 test('真实运行时：结构快照记账，整层回退恢复表与行', async () => {
   const result = await build({ absWorkingDir: fileURLToPath(new URL('..', import.meta.url)), entryPoints: ['src/sese-ledger/core/runtime.ts', 'src/sese-ledger/core/time-machine.ts'], outdir: 'out', bundle: true, write: false, format: 'esm', platform: 'node', logLevel: 'silent' });
-  const load = name => import(`data:text/javascript;base64,${Buffer.from(result.outputFiles.find(file => file.path.endsWith(`/${name}.js`)).text).toString('base64')}`);
+  const load = name => import(`data:text/javascript;base64,${Buffer.from(result.outputFiles.find(file => file.path.replace(/\\/g, '/').endsWith(`/${name}.js`)).text).toString('base64')}`);
   const { createLedgerRuntime } = await load('runtime');
   const { createTimeMachine } = await load('time-machine');
   const chat = [{ is_user: false, id: 'a1', mes: '回复' }];
