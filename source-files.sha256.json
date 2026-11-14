@@ -74,7 +74,7 @@
     "src/unified-statusbar/core/chatu8-bridge.ts": "1128d3eb459cf8f0e936ee28e380e144f267fd7a6593e8e8bc3bdb07bfea9ba7",
     "src/unified-statusbar/core/config-store.ts": "035966ac43ae7ecfdb8057c680e4b703cabd8ba0d80008ddf8c40d2e1589952a",
     "src/unified-statusbar/core/constants.ts": "855850ce782caffed53b506da747ab2d927600c8b924ef28ad23439af7abb71a",
-    "src/unified-statusbar/core/context-strip.ts": "093dcb9b50d78d9c4d4546c7a7a4b42ed4918d8cc37e873a068cdaedc99b3ba4",
+    "src/unified-statusbar/core/context-strip.ts": "44aeb9f8d72d07e68abace11e27cf957d7e005e0ac2b3bf98ec6b6a0a633739f",
     "src/unified-statusbar/core/cross-window.ts": "3d7c56f4c425bafaf49ac0ffc8fb46e25745236a8e32ce7d4a48eff3ba17ec7f",
     "src/unified-statusbar/core/db-ddl-check-parser.ts": "7b02942496bf129ff21b4207fa8c0ca5fbc83811356a82ea08852c53db7de3ce",
     "src/unified-statusbar/core/ejs-bridge.ts": "583645d4aa29cb5fe897607e36d094a8ac9798519d0dcf114fb150dc18cd67f5",
