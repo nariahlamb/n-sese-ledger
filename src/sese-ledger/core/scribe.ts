@@ -111,6 +111,25 @@ export function splitTablesByGroup(tables: TableModel[], groups: LedgerGroupDef[
     .map(([groupId, list]) => ({ groupId, groupName: String(findGroup(groups, groupId)?.name || ''), tables: list }));
 }
 
+/** 按每个分组的 batchSize 把超批窗口拆成有序子批（由旧到新），避免多轮积压糊进同一次【当前正文】。 */
+export function splitPlanByBatchSize(plan: UpdateGroup[]): UpdateGroup[] {
+  const out: UpdateGroup[] = [];
+  for (const g of plan) {
+    const indices = Array.isArray(g.indices) ? g.indices : [];
+    const batch = Math.max(1, Math.trunc(Number(g.batchSize) || 1));
+    if (indices.length <= batch) {
+      out.push(g);
+      continue;
+    }
+    let part = 0;
+    for (let i = 0; i < indices.length; i += batch) {
+      const slice = indices.slice(i, i + batch);
+      out.push({ ...g, key: `${g.key}|batch=${part++}`, indices: slice });
+    }
+  }
+  return out;
+}
+
 /** 自动填表计划分桶：**待填楼层窗口相同＝同一批**（同批各分组并发请求，一批收齐再落账、再换下一批——
  *  对齐数据库插件的 bucket 语义：bucketKey = 落点楼层|批号|模式）。窗口不同＝不同批，按原顺序串行。 */
 export function bucketPlanByWindow(plan: UpdateGroup[]): UpdateGroup[][] {
@@ -960,8 +979,8 @@ async function runScheduledFillCore(deps: FillerDeps, opts: { signal?: AbortSign
   let scheduleDirty = false;
   let dataMayHaveChanged = false;
   try {
-    // 同批（待填楼层窗口相同）的各分组**并发请求**，一批全部收齐再落账、再换下一批（对齐数据库插件的 bucket 语义）
-    for (const bucketGroups of bucketPlanByWindow(plan)) {
+    // 按 batchSize 切批后再按待填楼层窗口分桶：同批各分组并发，收齐落账推进水位后再换下一批。
+    for (const bucketGroups of bucketPlanByWindow(splitPlanByBatchSize(plan))) {
       if (opts.signal?.aborted) break;
       const settled = await Promise.allSettled(bucketGroups.map(async (group): Promise<{ group: UpdateGroup; outcome: ValidationOutcome & { raw: string; aborted?: boolean }; target: PinnedFillTarget } | null> => {
         // 落点与来源楼层先钉住：请求期间的楼层增删/位移都不能改变本组结果该记到哪一层。

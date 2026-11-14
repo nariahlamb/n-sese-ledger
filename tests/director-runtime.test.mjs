@@ -137,3 +137,46 @@ test('失败/中止的清理也复核目标，绝不删除新楼', async () => {
   assert.equal(switched.getInput(), '原输入');
   switched.director.unbind();
 });
+
+test('策略1 用户楼含首尾空白或换行时仍能匹配并成功落楼（手机输入法兼容）', async () => {
+  const request = deferred();
+  const listeners = new Map();
+  const events = {
+    on(name, cb) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(cb); },
+    off(name, cb) { listeners.get(name)?.delete(cb); },
+    async emit(name, ...args) { for (const cb of listeners.get(name) || []) await cb(...args); },
+  };
+  const user = { uid: 'u-trim', is_user: true, mes: '原输入 \n' };
+  const chat = [{ is_user: false, mes: '旧正文' }, user];
+  const writes = [];
+  let deleted = 0;
+  const director = createDirectorRuntime({
+    runtime: { isReady: () => true, book: () => null },
+    getChat: () => chat,
+    getChatIdentity: () => 'character:card-a|chat:chat-trim',
+    getStatusbarWindows: () => [],
+    getTavernHelper: () => null,
+    getEventSource: () => events,
+    getEventType: name => name,
+    requestTask: () => request.promise,
+    readDriverConfig: () => ({ enabled: true, presetName: '极速纯召回', presets: {} }),
+    saveDriverConfig() {},
+    updateUserMessage: async (index, patch) => { writes.push({ index, patch }); user.mes = patch.mes; return true; },
+    getInputBox: () => '原输入 \n',
+    setInputBox() {},
+    deleteLastMessage: async () => { deleted++; },
+    clickSend: () => true,
+    notifyProgress() {}, clearProgress() {}, warn() {}, report() {},
+    now: () => 1000,
+  });
+  director.bind();
+  director.__gate.lastIntentAt = 1000;
+  const p = {};
+  const r = events.emit('GENERATION_AFTER_COMMANDS', 'normal', p, false);
+  request.resolve('<recall></recall>');
+  await r;
+  assert.equal(writes.length, 1);
+  assert.equal(deleted, 0);
+  assert.match(p.prompt, /本轮召回：/);
+  director.unbind();
+});

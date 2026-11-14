@@ -150,7 +150,7 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
     const chat = deps.getChat();
     if (!Array.isArray(chat) || chat !== target.chat) return null;
     const matches = (message: any): boolean => message === target.message
-      && String(message?.mes || '') === expectedText
+      && String(message?.mes || '').trim() === String(expectedText ?? '').trim()
       && (!target.stableId || readStableMessageId(message) === target.stableId);
     let index = target.floorIndex;
     let message = index !== null ? chat[index] : null;

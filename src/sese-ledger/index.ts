@@ -43,6 +43,7 @@ import { buildMergeInstruction, createSummaryMergeService, extractChronicle, typ
 import { summaryWarning } from './core/summary-warning';
 import { bindLedgerRelocationCopy } from './core/relocation';
 import { isAnchorCandidate, ledgerAnchorFor } from './core/floor-scope';
+import { shouldSkipReceivedMessageType, waitForReceivedAiFloor } from './core/message-gate';
 import { canBindToCard, readBoundTemplateName } from './core/card-binding';
 import { mountWorkbenchPanel, type WorkbenchHost, type WorkbenchDeps } from './settings/panel/shell';
 
@@ -467,8 +468,10 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   // 填表终止（进度通知点击）：abort 所有在跑的填表 run（三入口共用一套控制器）——
   // 当前请求立即停（host-ai 走 stopGenerationById），后续批次与分组不再执行；已落账的改动保留。
   const activeFillRuns = new Set<AbortController>();
-  /** 全局填表互斥（B13）：自动/手动/定向重填共用一个开关；运行中一律拒绝新入口。 */
+  /** 全局填表互斥（B13）：自动/手动/定向重填共用一个开关；运行中拒绝重入，但自动填表置 pendingAutoFill 等结束补查，不静默丢轮。 */
   let fillBusy = false;
+  let chatEpoch = 0;
+  let pendingAutoFill = false;
   /** 填表运行状态（工作台横幅 / 悬浮钮动效的数据源）：运行中 + 当前在跑请求的进度快照。
    *  纯事件推送，无轮询；面板关闭时无人订阅 ⇒ 零渲染开销。 */
   interface FillActivityState { running: boolean; entries: { label: string; attempt: number; maxAttempts: number }[] }
@@ -498,6 +501,7 @@ export function bootLedger(): { dispose: () => Promise<void> } {
     };
   }
   function terminateFill(): void {
+    pendingAutoFill = false;
     if (activeFillRuns.size === 0) return;
     for (const ctrl of activeFillRuns) ctrl.abort();
     warnPersist('已终止本次填表：当前请求已停止，后续批次与分组不再执行（已落账的改动保留）', '填表');
@@ -591,14 +595,26 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   }
 
   async function autoFillOnce(): Promise<void> {
-    // 全局互斥：手动/重填正在跑时不重复发起自动填表（B13）。
+    // 全局互斥：手动/重填/上一轮自动正在跑时先登记补跑标记，结束后再查最新水位，不静默丢掉刚生成的这轮。
     const run = beginFillRun();
-    if (!run) return;
+    if (!run) {
+      pendingAutoFill = true;
+      return;
+    }
+    const runEpoch = chatEpoch;
     try {
       await runScheduledFill(fillerDeps, { signal: run.signal });
     } finally {
       run.end();
       maybeWarnSummaryCount();
+      if (pendingAutoFill) {
+        pendingAutoFill = false;
+        if (runEpoch === chatEpoch && !run.signal.aborted) {
+          setTimeout(() => {
+            if (runEpoch === chatEpoch) void autoFillOnce();
+          }, 0);
+        }
+      }
     }
   }
 
@@ -804,6 +820,8 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   };
   let chatChangeTimer: ReturnType<typeof setTimeout> | null = null;
   on('CHAT_CHANGED', () => {
+    chatEpoch += 1;
+    pendingAutoFill = false;
     // 同步置「未落定」：状态栏 refreshAll 可能先于本台账异步装载到达，避免按旧账本投影。
     runtime.markChatChanging();
     if (chatChangeTimer) clearTimeout(chatChangeTimer);
@@ -814,13 +832,26 @@ export function bootLedger(): { dispose: () => Promise<void> } {
       });
     }, 50);
   });
-  on('MESSAGE_RECEIVED', (_id: number, type: string) => {
-    if (type === 'first_message') return; // V3.639 教训
-    // 新楼层落地即同步序号基准：删楼/swipe 时靠它识别水位该回退几层
-    runtime.syncFloors();
-    void runtime.flush();
-    void autoFillOnce();
-    void refreshWorldbook();
+  on('MESSAGE_RECEIVED', (id: number, type: string) => {
+    if (shouldSkipReceivedMessageType(type)) return;
+    const epoch = chatEpoch;
+    void waitForReceivedAiFloor({
+      messageId: id,
+      getChat: () => getStContext()?.chat || [],
+      isStale: () => epoch !== chatEpoch,
+    }).then((res) => {
+      if (!res.ready || epoch !== chatEpoch) {
+        if (res.reason === 'unmaterialized') {
+          try { ledgerLog.push('info', '填表', `跳过自动填表：目标楼层（${String(id)}）正文尚未落定`); } catch (_e) { /* ignore */ }
+        }
+        return;
+      }
+      // 确认本轮 AI 楼层已落定后再同步序号基准并触发填表，避免同步抢读前面旧楼层。
+      runtime.syncFloors();
+      void runtime.flush();
+      void autoFillOnce();
+      void refreshWorldbook();
+    });
   });
   on('MESSAGE_DELETED', () => { runtime.pruneRemovedAnchors(); void refreshWorldbook(); });
   on('MESSAGE_SWIPED', () => { runtime.pruneRemovedAnchors(); });
