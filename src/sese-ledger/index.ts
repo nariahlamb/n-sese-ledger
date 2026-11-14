@@ -608,6 +608,16 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   const director = createDirectorRuntime({
     runtime,
     getChat: () => getStContext()?.chat || [],
+    getChatIdentity: () => {
+      const ctx = getStContext();
+      if (!ctx) return null;
+      const chatKey = String(ctx.chatId || ctx.getCurrentChatId?.() || '').trim();
+      if (!chatKey) return null;
+      const owner = ctx.groupId != null && String(ctx.groupId)
+        ? `group:${String(ctx.groupId)}`
+        : `character:${String(ctx.characters?.[Number(ctx.characterId)]?.avatar || ctx.characterId || '')}`;
+      return `${owner}|chat:${chatKey}`;
+    },
     getTavernHelper: () => w.TavernHelper,
     getEventSource: () => getStContext()?.eventSource || null,
     getEventType: (name) => getStContext()?.eventTypes?.[name],
@@ -630,9 +640,10 @@ export function bootLedger(): { dispose: () => Promise<void> } {
       const msg = ctx?.chat?.[index];
       if (!msg) return false;
       try {
+        // 写入与保存是同一目标的一次操作；保存后再次核对，切聊天/编辑期间不把旧规划当成功。
         Object.assign(msg, patch);
-        await (ctx.saveChatConditional?.() ?? ctx.saveChat?.());
-        return true;
+        const saved = await (ctx.saveChatConditional?.() ?? ctx.saveChat?.());
+        return ctx.chat?.[index] === msg && msg.mes === patch.mes && saved !== false;
       } catch (_e) {
         return false;
       }

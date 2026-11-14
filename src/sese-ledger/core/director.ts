@@ -25,11 +25,12 @@ import type { LedgerBlockContents, LedgerPromptItem, LedgerPromptItemSpec, Ledge
 import { describeErrorSummary } from './error-detail';
 import magicRecallAsset from '../assets/plot-preset-magic-recall.json';
 import pureRecallAsset from '../assets/plot-preset-pure-recall.json';
+import { buildStatusbarCandidatePrompt, buildStatusbarCognitionPrompt, type StatusbarNarrativeSnapshot } from './statusbar-cognition';
 
 /** 预设内的提示词项（存储形态；hidden=true 的段/块不进请求，顺序位保留）。 */
 export type DriverPromptMessage = LedgerPromptItemSpec;
 
-/** 匹配替换参数（随预设保存；占位符 {{意外倾向}}/{{意外频率}}/{{主动频率}}/{{氛围频率}}/{{召回数量}} 的取值来源）。 */
+/** 匹配替换参数（随预设保存；{{召回数量}} 是可选召回的 0～N 上限，不要求按编号补满）。 */
 export interface DriverRates {
   /** {{意外倾向}}＝全局意外走向倾向（数据库 sulv1）。 */
   rateMain?: number;
@@ -39,7 +40,7 @@ export interface DriverRates {
   rateErotic?: number;
   /** {{氛围频率}}＝环境氛围触发频率（数据库 sulv4）。 */
   rateCuckold?: number;
-  /** {{召回数量}}＝召回记忆条数（数据库 zhaohui 的台账名，2026-10-19 改名）。 */
+  /** {{召回数量}}＝召回记忆的 0～N 上限；没有相关纪要时可以是 0 条（数据库 zhaohui 的台账名）。 */
   recallCount?: number;
 }
 
@@ -173,6 +174,8 @@ export interface PlaceholderContext {
   rates?: DriverRates;
   /** 本轮骰点（{{roll_bg}} / {{roll_charN}} / {{roll_fate}} 的取值来源；缺省则这些占位符原样保留）。 */
   dice?: DriverDice;
+  /** 当前聊天的版本化只读认知/候选副本；仅内置魔改预设消费，自定义预设不追加段。 */
+  statusbarSnapshot?: StatusbarNarrativeSnapshot | null;
 }
 
 /** 占位符表：{{本轮输入}} / {{意外倾向}} … / {{roll_bg}} {{roll_char1..5}} {{roll_fate}}。 */
@@ -475,6 +478,13 @@ export async function runPlanningRequest(
   const blocks = buildPromptBlocks(ctx);
   const scanText = buildPromptScanText(ctx);
   const items = buildPromptItems(preset, ctx, { resolveTableBlock: deps.resolveTableBlock });
+  // P4 是内置魔改预设的窄适配；不改预设 schema，也不给用户自定义预设暗中追加提示段。
+  if (preset.name === BUILTIN_PRESET_NAMES[0] && ctx.statusbarSnapshot) {
+    const snapshot = ctx.statusbarSnapshot;
+    items.push({ kind: 'segment', role: 'system', content: buildStatusbarCognitionPrompt(snapshot) });
+    const candidate = buildStatusbarCandidatePrompt(snapshot);
+    if (candidate) items.push({ kind: 'segment', role: 'system', content: candidate });
+  }
   const min = Math.max(preset.minLength, 0);
   const maxRetries = Math.max(0, preset.maxRetries);
   let last = '';

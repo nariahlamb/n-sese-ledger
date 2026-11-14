@@ -33,10 +33,15 @@ import type { LedgerLogEvent } from './ledger-log';
 import { describeErrorDetail } from './error-detail';
 import type { LedgerRuntime } from './runtime';
 import { readTableBlockValue, resolveTable } from './book';
+import { readStatusbarNarrativeSnapshot } from './statusbar-cognition';
 
 export interface DirectorRuntimeDeps {
   runtime: LedgerRuntime;
   getChat(): any[];
+  /** 当前聊天稳定身份（chatId/getCurrentChatId + owner）；缺省时用对象+原文+数组身份兜底。 */
+  getChatIdentity?(): string | null;
+  /** 状态栏只读桥所在窗口（自身/parent/top）；缺省按浏览器全局检测。 */
+  getStatusbarWindows?(): unknown[];
   getTavernHelper(): any;
   getEventSource(): { on(type: string, cb: (...args: any[]) => void): void; emit(type: string, ...args: any[]): void } | null;
   getEventType(name: 'GENERATION_AFTER_COMMANDS' | 'MESSAGE_UPDATED' | 'MESSAGE_SENT'): string | undefined;
@@ -83,6 +88,25 @@ type PlanOutcome =
   | { status: 'failed'; reason?: string }
   | { status: 'skipped' };
 
+interface PlanningTarget {
+  floorIndex: number | null;
+  chat: any[] | null;
+  chatIdentity: string | null;
+  message: any | null;
+  /** 宿主新用户消息没有通用稳定 id 字段；有 id/uid/messageId 时优先用于重新定位。 */
+  stableId: string | null;
+  originalText: string;
+}
+
+function readStableMessageId(message: any): string | null {
+  for (const key of ['id', 'uid', 'messageId', 'message_id']) {
+    const value = message?.[key];
+    if (typeof value === 'string' && value) return `${key}:${value}`;
+    if (typeof value === 'number' && Number.isFinite(value)) return `${key}:${String(value)}`;
+  }
+  return null;
+}
+
 export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
   const gate = { lastIntentAt: 0, lastIntercept: { text: '', ts: 0 } };
   let processing = false;
@@ -90,7 +114,70 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
   let unbinders: (() => void)[] = [];
   let warnedInvalidPreset = false;
   /** 策略2规划出的本轮指令（等待 MESSAGE_SENT 落到用户楼后补自产标记）。 */
-  let pendingSend: { text: string; outputs: Record<string, string> } | null = null;
+  let pendingSend: { text: string; outputs: Record<string, string>; target: PlanningTarget } | null = null;
+  function currentChatIdentity(): string | null {
+    try {
+      const value = deps.getChatIdentity?.();
+      return typeof value === 'string' && value ? value : null;
+    } catch (_e) { return null; }
+  }
+
+  /** 在请求开始前钉住聊天与目标消息；没有 chatId 时仍保留数组/对象引用作保守兜底。 */
+  function capturePlanningTarget(floorIndex: number | null, originalText: string): PlanningTarget {
+    const chat = deps.getChat();
+    const safeChat = Array.isArray(chat) ? chat : null;
+    const index = floorIndex === null ? null : Math.trunc(floorIndex);
+    const message = index !== null ? safeChat?.[index] || null : null;
+    return {
+      floorIndex: index,
+      chat: safeChat,
+      chatIdentity: currentChatIdentity(),
+      message,
+      stableId: readStableMessageId(message),
+      originalText: String(originalText ?? '').trim(),
+    };
+  }
+
+  function sameChat(target: PlanningTarget): boolean {
+    const identity = currentChatIdentity();
+    // 已提供身份必须相等；不能仅凭空身份让旧结果跨聊天通过。
+    if (target.chatIdentity || identity) return !!target.chatIdentity && identity === target.chatIdentity;
+    return Array.isArray(deps.getChat()) && deps.getChat() === target.chat;
+  }
+
+  function locatePlanningTarget(target: PlanningTarget, expectedText = target.originalText): { index: number; message: any } | null {
+    if (!sameChat(target) || !target.message) return null;
+    const chat = deps.getChat();
+    if (!Array.isArray(chat) || chat !== target.chat) return null;
+    const matches = (message: any): boolean => message === target.message
+      && String(message?.mes || '') === expectedText
+      && (!target.stableId || readStableMessageId(message) === target.stableId);
+    let index = target.floorIndex;
+    let message = index !== null ? chat[index] : null;
+    if (index === null || !matches(message)) {
+      // 前面楼层被删除后可沿稳定 id 找回原对象；无 id 时只用对象+原文，绝不按同下标写别的对象。
+      const found = target.stableId
+        ? chat.findIndex(m => readStableMessageId(m) === target.stableId && matches(m))
+        : chat.findIndex(matches);
+      if (found < 0) return null;
+      index = found;
+      message = chat[found];
+    }
+    return { index: index!, message };
+  }
+
+  function statusbarWindows(): unknown[] {
+    if (deps.getStatusbarWindows) return deps.getStatusbarWindows();
+    const out: unknown[] = [];
+    try {
+      const w = (globalThis as any).window;
+      if (w) out.push(w);
+      if (w?.parent) out.push(w.parent);
+      if (w?.top) out.push(w.top);
+    } catch (_e) { /* cross-origin */ }
+    return [...new Set(out)];
+  }
+
   /** 策略2 取消本次发送后待恢复的输入原文（宿主清空输入框后写回；同数据库项目 cancelPendingSendKeepTextarea）。 */
   let pendingSendRestore: { text: string; seq: number } | null = null;
   let pendingRestoreSeq = 0;
@@ -128,29 +215,37 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
     const seq = ++pendingRestoreSeq;
     pendingSendRestore = { text: original, seq };
     const textarea = hostDocument()?.getElementById('send_textarea') as HTMLTextAreaElement | null;
+    const restoreChatIdentity = currentChatIdentity();
     if (textarea) {
-      const fn = () => restorePendingSendText(seq);
+      const fn = () => {
+        if (restoreChatIdentity !== currentChatIdentity()) { pendingSendRestore = null; detachRestoreListener(); return; }
+        restorePendingSendText(seq);
+      };
       try {
         textarea.addEventListener('input', fn);
         pendingRestoreListener = { el: textarea, fn };
       } catch (_e) { /* DOM 不可用：只靠定时器兜底 */ }
     }
     // 兜底：宿主未派发 input 事件时恢复，避免用户输入丢失（与数据库项目同延时）。
-    setTimeout(() => restorePendingSendText(seq), 1000);
+    setTimeout(() => {
+      if (restoreChatIdentity !== currentChatIdentity()) { pendingSendRestore = null; detachRestoreListener(); return; }
+      restorePendingSendText(seq);
+    }, 1000);
   }
 
   /** 策略1 中止/失败：本次发送作废——停生成、删掉刚落的用户楼（确认仍是原文）、原文退回输入框。 */
-  async function discardLandedSend(floorIndex: number, originalText: string): Promise<void> {
+  async function discardLandedSend(target: PlanningTarget): Promise<void> {
+    const originalText = target.originalText;
     try { deps.stopGeneration?.(); } catch (_e) { /* ignore */ }
     const chat = deps.getChat();
+    const located = locatePlanningTarget(target);
     const last = Array.isArray(chat) && chat.length > 0 ? chat[chat.length - 1] : null;
-    const stillOriginal = last?.is_user === true
-      && chat.length - 1 === floorIndex
-      && String(last.mes || '') === originalText;
+    const stillOriginal = !!located && located.message === last && last?.is_user === true
+      && Array.isArray(chat) && chat.length - 1 === located.index;
     if (stillOriginal) {
       try { await deps.deleteLastMessage(); } catch (_e) { /* 删除失败也回填原文，由用户手动处理 */ }
     }
-    deps.setInputBox(originalText);
+    if (sameChat(target)) deps.setInputBox(originalText);
   }
 
   /** 自产用户楼的统一标记：两个落点（策略1的已落楼 / 策略2的待落楼）共用，防口径漂移。 */
@@ -218,11 +313,14 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
         rates: preset?.rates,
         // 骰点每轮投一次（同一轮的请求/重试共用同一组值；{{roll_bg}}/{{roll_charN}}/{{roll_fate}} 从这里取值）
         dice: rollDriverDice(),
+        statusbarSnapshot: readStatusbarNarrativeSnapshot({ getWindows: statusbarWindows, getChatIdentity: currentChatIdentity }),
       };
     }
 
   /** 规划：单任务一次请求 → 组装最终指令。skipped=不接管（宿主原样发送）。 */
-  async function plan(userInput: string, currentInputFloorIndex: number | null): Promise<PlanOutcome> {
+  async function plan(userInput: string, currentInputFloorIndex: number | null, capturedTarget?: PlanningTarget): Promise<PlanOutcome> {
+    // 捕获必须先于 ensureSeeded/requestTask 的 await；过期结果只作废，不写进新聊天。
+    const target = capturedTarget || capturePlanningTarget(currentInputFloorIndex, userInput);
     const preset = resolvePreset();
     if (!preset) return { status: 'skipped' };
     if (!deps.runtime.isReady()) {
@@ -256,6 +354,10 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
         },
       }, signal);
       if (signal.aborted) return { status: 'aborted' };
+      if (!sameChat(target)) {
+        deps.report?.({ level: 'warn', message: '剧情推进结果已作废：规划期间聊天发生变化' });
+        return { status: 'skipped' };
+      }
       // 空回复 / 请求异常 / 长度不足在 runPlanningRequest 里已按 maxRetries 重试；仍有 errors＝重试耗尽，判失败
       if (errors.length > 0 || !raw) {
         const reason = errors[errors.length - 1] || 'AI 未返回有效输出';
@@ -276,17 +378,23 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
   }
 
   /** 规划并落用户楼字段（sl_plot=聚合最终指令 / sl_plot_tasks=各任务原始输出）。 */
-  async function planAndAttachToFloor(floorIndex: number, inputText: string): Promise<PlanOutcome> {
-    const planned = await plan(inputText, floorIndex);
+  async function planAndAttachToFloor(floorIndex: number | null, inputText: string, capturedTarget?: PlanningTarget): Promise<PlanOutcome> {
+    const target = capturedTarget || capturePlanningTarget(floorIndex, inputText);
+    const planned = await plan(inputText, target.floorIndex, target);
     if (planned.status !== 'planned') return planned;
-    const chat = deps.getChat();
-    const msg = chat?.[floorIndex];
-    if (!msg) return planned;
+    // await 后、真正写入前再查：编辑、删除、切聊天及宿主保存期间的变化都不能写错楼。
+    const located = locatePlanningTarget(target);
+    if (!located || located.message?.is_user !== true) {
+      const text = '剧情推进结果已作废：目标用户楼已删除、编辑或移动';
+      deps.warn(text);
+      deps.report?.({ level: 'warn', message: text, raw: Object.values(planned.outputs || {}).join('\n\n') });
+      return { status: 'skipped' };
+    }
     const patch: Record<string, unknown> = {
       mes: planned.finalDirective,
       ...processedPatch(planned.finalDirective, planned.outputs),
     };
-    const ok = await deps.updateUserMessage(floorIndex, patch);
+    const ok = await deps.updateUserMessage(located.index, patch);
     if (!ok) {
       const text = '剧情推进：用户楼写入失败（规划文本未落楼）';
       deps.warn(text);
@@ -321,7 +429,8 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
             processing = true;
             let finalMessage: string | null = null;
             try {
-              const planned = await plan(userMessage, null);
+              const target = capturePlanningTarget(null, userMessage);
+            const planned = await plan(userMessage, null, target);
               finalMessage = planned.status === 'planned' ? planned.finalDirective : null;
             } finally {
               processing = false;
@@ -375,13 +484,18 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
           markIntercept(gate, messageText, deps.now());
           processing = true;
           try {
-            const outcome = await planAndAttachToFloor(lastIdx, messageText);
-            if (outcome.status === 'planned') {
+            const target = capturePlanningTarget(lastIdx, messageText);
+            const outcome = await planAndAttachToFloor(lastIdx, messageText, target);
+            const located = locatePlanningTarget(target, outcome.status === 'planned' ? outcome.finalDirective : target.originalText);
+            if (outcome.status === 'planned' && located) {
               params.prompt = outcome.finalDirective;
-              deps.getEventSource()?.emit(deps.getEventType('MESSAGE_UPDATED') || 'message_updated', lastIdx);
+              deps.getEventSource()?.emit(deps.getEventType('MESSAGE_UPDATED') || 'message_updated', located.index);
+            } else if (outcome.status === 'planned') {
+              // 极小窗口：写入后事件发送前又编辑/切聊天，绝不把新结果发给当前生成。
+              await discardLandedSend(target);
             } else if (outcome.status === 'aborted' || outcome.status === 'failed') {
               // 中止/失败＝本次发送作废（同数据库项目策略1）：停生成、删刚落的用户楼、原文退回输入框
-              await discardLandedSend(lastIdx, messageText);
+              await discardLandedSend(target);
             }
           } finally {
             processing = false;
@@ -395,13 +509,14 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
           markIntercept(gate, boxText, deps.now());
           processing = true;
           try {
-            const outcome = await plan(boxText, null);
-            if (outcome.status === 'planned') {
+            const target = capturePlanningTarget(null, boxText);
+            const outcome = await plan(boxText, null, target);
+            if (outcome.status === 'planned' && sameChat(target)) {
               deps.setInputBox(outcome.finalDirective);
               params.prompt = outcome.finalDirective;
               // 等宿主把这条指令落到用户楼后补自产标记（MESSAGE_SENT）：
               // 否则删楼后露出的旧楼没有 _sl_processed/sl_plot，会被策略1当成新一轮再推一次。
-              pendingSend = { text: outcome.finalDirective, outputs: outcome.outputs };
+              pendingSend = { text: outcome.finalDirective, outputs: outcome.outputs, target };
             } else if (outcome.status === 'aborted' || outcome.status === 'failed') {
               // 中止/失败＝取消本次发送（同数据库项目策略2）：宿主读到空输入框就不落用户楼，随后回填原文
               cancelPendingSendKeepTextarea(boxText);
@@ -430,11 +545,16 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
     const handler = (index: number) => {
       const pending = pendingSend;
       if (!pending) return;
+      const chat = deps.getChat();
+      const idx = Number(index);
+      const msg = chat?.[idx];
+      // 只认捕获时的聊天、尾部落点和完整指令；跨聊天的 MESSAGE_SENT 不补标记。
+      const valid = sameChat(pending.target) && chat === pending.target.chat
+        && Array.isArray(chat) && idx === chat.length - 1
+        && msg?.is_user === true && String(msg.mes || '').trim() === pending.text.trim();
       pendingSend = null;
-      const msg = deps.getChat()?.[Number(index)];
-      if (!msg || msg.is_user !== true) return;
+      if (!valid) return;
       // 宿主可能按 trim_spaces 修剪过文本；只有确认是本轮指令才补标记。
-      if (String(msg.mes || '').trim() !== pending.text.trim()) return;
       Object.assign(msg, processedPatch(pending.text, pending.outputs));
     };
     es.on(eventType, handler);
@@ -526,6 +646,8 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
       hookMessageSent();
     },
     unbind() {
+      abortController?.abort();
+      pendingSend = null;
       for (const u of unbinders) { try { u(); } catch (_e) { /* ignore */ } }
       unbinders = [];
     },
@@ -544,7 +666,7 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
       }
       processing = true;
       try {
-        const outcome = await planAndAttachToFloor(floorIndex ?? chat.length - 1, String(input));
+        const outcome = await planAndAttachToFloor(floorIndex, String(input));
         return outcome.status === 'planned';
       } finally {
         processing = false;
