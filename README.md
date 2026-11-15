@@ -4,7 +4,7 @@
 > 1. **每次修改本仓库代码、标准表结构、推进预设或外部接口后，必须同步更新本 README**（至少更新「当前改造状态与未完成项」「表结构与世界书契约」及文末「改造记录」），严禁只改代码不留记录。
 > 2. **先读再改，改完必验**：涉及 `src/` 修改必须同步刷新 `source-files.sha256.json`，重建 `dist/index.js`，并运行 `npm test` 与 `npm run check`。未经用户明确指令，不擅自 `git commit` / `git push`。
 > 3. **做角色卡联动必看**：第 3 节完整列出了台账默认 18 张表的表名/分组/列名、`SeseLedger-*` 世界书投影槽位、填表与剧情推进的宿主字段契约，写卡时直接对照，无需猜字段名。
-> 4. **设计红线**：本扩展是用户弃用 `shujuku` 后自研的台账系统，排障与重构一律以本仓库自身契约与 TT/ST 宿主实态为准，不以 `shujuku` 方案为基准。
+> 4. **设计基准**：排障与重构一律以本仓库既有契约与 TT/ST 宿主实态为准，不套用其他外部数据库插件的实现方式。
 
 ---
 
@@ -17,7 +17,7 @@
   - 安装 `n-sese-unified-statusbar` 时，台账从状态栏设置面板打开工作台，并通过 `__ubWorldbookProjection` 共享同一主世界书写入队列、通过 `__ubWorldCognitionSnapshot` 读取世界认知快照（单开时自动安全降级）。
   - 向状态栏与 `n-sese-phone` 暴露 `window.SeseLedgerAPI`（当宿主未装载外部真数据库时，自动注册兼容别名 `window.AutoCardUpdaterAPI`）。
   - 请勿与另一套独立数据库插件同时启用。
-- **延伸参考**：[来源说明](SOURCE_NOTICE.md)
+- **来源与参考**：业务原始源码源自原作者 2026-10-25 公开分享包（原作者已停更），本仓库为个人后续适配与改造维护版本，版权归属见 [SOURCE_NOTICE.md](SOURCE_NOTICE.md) 与 [src/README.md](src/README.md)。
 
 ---
 
