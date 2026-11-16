@@ -115,9 +115,39 @@ function getStContext(): any {
   }
 }
 
+const _wrappedLedgerToastrCache = new WeakMap<object, any>();
+
+function prefixLedgerTitle(title?: unknown): string {
+  const raw = typeof title === 'string' ? title.trim() : '';
+  if (!raw) return '台账';
+  const cleaned = raw
+    .replace(/^瑟瑟台账(?:\s*[·•|:\-]\s*|$)/, '')
+    .replace(/^台账(?:\s*[·•|:\-]\s*|$)/, '')
+    .trim();
+  return cleaned ? `台账 · ${cleaned}` : '台账';
+}
+
 function getToastr(): any {
   try {
-    return (hostWindow() as any).toastr || null;
+    const raw = (hostWindow() as any).toastr || null;
+    if (!raw || typeof raw !== 'object') return raw;
+    const cached = _wrappedLedgerToastrCache.get(raw);
+    if (cached) return cached;
+    const wrapped = new Proxy(raw, {
+      get(target, prop, receiver) {
+        if (prop === 'info' || prop === 'success' || prop === 'warning' || prop === 'error') {
+          const orig = Reflect.get(target, prop, target);
+          if (typeof orig !== 'function') return orig;
+          return function (msg: any, title?: any, opts?: any) {
+            return orig.call(target, msg, prefixLedgerTitle(title), opts);
+          };
+        }
+        const val = Reflect.get(target, prop, receiver);
+        return typeof val === 'function' ? val.bind(target) : val;
+      },
+    });
+    _wrappedLedgerToastrCache.set(raw, wrapped);
+    return wrapped;
   } catch (_e) {
     return null;
   }
@@ -140,7 +170,7 @@ export function bootLedger(): { dispose: () => Promise<void> } {
     console.warn('[瑟瑟台账]', message);
     try { ledgerLog.push('warn', source, message); } catch (_e) { /* ignore */ }
   };
-  const notify = (message: string, title = '瑟瑟台账') => { try { getToastr()?.success?.(message, title); } catch (_e) { /* ignore */ } };
+  const notify = (message: string, title = '台账') => { try { getToastr()?.success?.(message, title); } catch (_e) { /* ignore */ } };
   // 常驻通知（不自动消失、点关闭才消失）：推进失败/终止这类「必须看到」的运行期提示走这条，
   // 同文案 5 分钟去重——自动管线连发同因失败不堆叠（与填表失败通知同口径）。
   const persistNotifier = createPersistentNotifier({ getToastr });

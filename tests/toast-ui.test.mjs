@@ -76,3 +76,46 @@ test('fill-notify：进度 toast 注入半透明紧凑与大 × 兜底样式，�
     dom.window.close();
   }
 });
+
+test('fill-notify & env.getToastr：台账通知与报错自动加「台账」前缀且不重复', async () => {
+  const { createProgressToast, createPersistentNotifier, prefixLedgerToastTitle } = await loadTs('src/sese-ledger/core/fill-notify.ts');
+  const { getToastr } = await loadTs('src/unified-statusbar/core/env.ts');
+  assert.equal(prefixLedgerToastTitle(''), '台账');
+  assert.equal(prefixLedgerToastTitle('瑟瑟台账'), '台账');
+  assert.equal(prefixLedgerToastTitle('填表失败'), '台账 · 填表失败');
+  assert.equal(prefixLedgerToastTitle('台账 · 推进'), '台账 · 推进');
+
+  const calls = [];
+  const rawToastr = {
+    error(msg, title) { calls.push(['error', msg, title]); },
+    warning(msg, title) { calls.push(['warning', msg, title]); },
+    info(msg, title) { calls.push(['info', msg, title]); },
+  };
+  const pn = createPersistentNotifier({ getToastr: () => rawToastr, title: '瑟瑟台账' });
+  pn.notify('error', '填表异常');
+  const pt = createProgressToast({ getToastr: () => rawToastr, title: '剧情推进' });
+  pt.show('推进中');
+  assert.deepEqual(calls, [
+    ['error', '填表异常', '台账'],
+    ['info', '推进中', '台账 · 剧情推进'],
+  ]);
+
+  const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost' });
+  const prevWin = globalThis.window;
+  dom.window.toastr = rawToastr;
+  globalThis.window = dom.window;
+  try {
+    const wrapped = getToastr();
+    wrapped.error('落账报错', '写入错误');
+    wrapped.warning('无标题警告');
+    rawToastr.error('外部错误', '外部');
+    assert.deepEqual(calls.slice(2), [
+      ['error', '落账报错', '台账 · 写入错误'],
+      ['warning', '无标题警告', '台账'],
+      ['error', '外部错误', '外部'],
+    ]);
+  } finally {
+    globalThis.window = prevWin;
+    dom.window.close();
+  }
+});

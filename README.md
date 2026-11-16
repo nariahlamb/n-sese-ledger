@@ -11,7 +11,7 @@
 ## 1. 定位与运行依赖
 
 - **扩展名称**：`瑟瑟台账`（`manifest.json` `loading_order: 210`，在 `n-sese-unified-statusbar` `200` 之后、`n-sese-phone` `220` 之前装载）
-- **当前版本**：`0.1.0-alpha.5`（基于 `63dc0b5` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
+- **当前版本**：`0.1.0-alpha.6`（基于 `63dc0b5` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
 - **宿主设置键**：`extensionSettings.sese_ledger_v1`（详见 [core/settings-store.ts](src/sese-ledger/core/settings-store.ts)）
 - **协同关系**：
   - 安装 `n-sese-unified-statusbar` 时，台账从状态栏设置面板打开工作台，并通过 `__ubWorldbookProjection` 共享同一主世界书写入队列、通过 `__ubWorldCognitionSnapshot` 读取世界认知快照（单开时自动安全降级）。
@@ -114,7 +114,7 @@
 
 ```powershell
 npm run build   # esbuild 打包 dist/index.js
-npm test        # node --test tests/*.test.mjs（当前 74 通过 / 3 跳过 / 0 失败）
+npm test        # node --test tests/*.test.mjs（当前 75 通过 / 3 跳过 / 0 失败）
 npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 完整性校验
 ```
 
@@ -126,6 +126,7 @@ npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 �
 
 | 日期 | 版本 / Commit | 改动范围与摘要 | 验证状态 |
 |---|---|---|---|
+| 2026-11-17 | `0.1.0-alpha.6` | `index.ts` 与内嵌 `env.ts` 的 `getToastr()` 及 `fill-notify.ts` 统一为台账全部 toast（含报错与警告）自动加「台账」前缀；扩展 `tests/toast-ui.test.mjs` | `build` / `test` 75 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |
 | 2026-11-17 | `0.1.0-alpha.5` | `fill-notify.ts` 进度 toast 新增贴边防误触拦截与单开半透明/紧凑/30×30 大 `×` 兜底样式，防止点击关闭到后台时误触任务中止；新增 `tests/toast-ui.test.mjs` | `build` / `test` 74 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |
 | 2026-11-17 | `0.1.0-alpha.4` | 同步 `contextKeepTags` 保留标签提取与剥离标签优先级保护；`scribe.ts` 与 `director-runtime.ts` 改用 `stripWithContextMessages` 逐楼独立清洗后再拼接；扩展 `tests/context-strip.test.mjs` | `build` / `test` 73 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |
 | 2026-11-15 | `0.1.0-alpha.3` (`5f90879`) | 同步重写台账侧 `context-strip.ts` 为单遍栈式配对剥离，防止思维链内未闭合孤儿标签误吞 `<content>` 正文；新增 `tests/context-strip.test.mjs` | `build` / `test` 67 通过 3 跳过 / `check` 全绿 |

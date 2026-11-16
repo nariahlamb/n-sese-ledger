@@ -190,8 +190,18 @@ export interface ProgressToast {
   close(): void;
 }
 
+export function prefixLedgerToastTitle(title?: unknown): string {
+  const raw = typeof title === 'string' ? title.trim() : '';
+  if (!raw) return '台账';
+  const cleaned = raw
+    .replace(/^瑟瑟台账(?:\s*[·•|:\-]\s*|$)/, '')
+    .replace(/^台账(?:\s*[·•|:\-]\s*|$)/, '')
+    .trim();
+  return cleaned ? `台账 · ${cleaned}` : '台账';
+}
+
 export function createProgressToast(deps: ProgressPersistOpts & { getToastr(): any; title?: string; level?: 'info' | 'warning' }): ProgressToast {
-  const title = deps.title || '瑟瑟台账';
+  const title = prefixLedgerToastTitle(deps.title);
   const level = deps.level || 'info';
   const setTimer = deps.setTimer || ((fn: () => void, ms: number) => setTimeout(fn, ms));
   const clearTimer = deps.clearTimer || ((h: unknown) => clearTimeout(h as any));
@@ -253,7 +263,7 @@ export interface PersistentNotifier {
 }
 
 export function createPersistentNotifier(deps: { getToastr(): any; title?: string; now?: () => number }): PersistentNotifier {
-  const title = deps.title || '瑟瑟台账';
+  const title = prefixLedgerToastTitle(deps.title);
   const suppressed = createDedup(deps.now || (() => Date.now()));
   return {
     notify(level, message) {
