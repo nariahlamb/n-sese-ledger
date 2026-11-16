@@ -23,6 +23,11 @@ import {
   type ExternalObjectStore,
 } from '../../unified-statusbar/core/external-object-store';
 import { createServerFileStore } from '../../unified-statusbar/core/server-file-store';
+import {
+  normalizeCustomApiPostProcessingMode,
+  normalizeCustomApiSource,
+} from '../../unified-statusbar/core/constants';
+import { tagCustomApiPostProcessing } from '../../unified-statusbar/core/ai-tool-shield';
 import type { LedgerFilesLike } from './ledger-store';
 import type { LedgerApiBinding } from './settings-store';
 
@@ -41,6 +46,8 @@ export interface LedgerCustomApi {
   apiurl?: string;
   key?: string;
   model?: string;
+  /** API 源：仅非 'openai' 才写入（'openai' 为宿主缺省，写了反而污染请求体）。 */
+  source?: string;
   max_tokens?: 'same_as_preset' | 'unset' | number;
   temperature?: 'same_as_preset' | 'unset' | number;
   frequency_penalty?: 'same_as_preset' | 'unset' | number;
@@ -107,6 +114,10 @@ interface HostPresetLike {
   presencePenalty?: unknown;
   topP?: unknown;
   topK?: unknown;
+  /** 预设的 API 源（归一在 constants.normalizeCustomApiSource）。 */
+  source?: unknown;
+  /** 预设的中段系统消息兼容策略（归一在 constants.normalizeCustomApiPostProcessingMode）。 */
+  promptPostProcessing?: unknown;
 }
 
 function readOnlyView(store: ExternalObjectStore): ExternalObjectStore {
@@ -180,7 +191,11 @@ function presetToCustomApi(preset: HostPresetLike): LedgerCustomApi {
   // top_p 合法区间 (0, 1]（DeepSeek 明确拒绝 0 / null）；越界按 'unset' 不外发。
   cfg.top_p = numericParamOf(preset.topP, (n) => n > 0 && n <= 1);
   cfg.top_k = numericParamOf(preset.topK);
-  return cfg;
+  // API 源：'openai' 是宿主缺省形态，不写字段（与主项目 api-config 同口径）。
+  const source = normalizeCustomApiSource(preset.source);
+  if (source !== 'openai') cfg.source = source;
+  // 前端出站策略随 custom_api 对象登记（WeakMap），走 generateRaw 时由受保层取出执行。
+  return tagCustomApiPostProcessing(cfg, normalizeCustomApiPostProcessingMode(preset.promptPostProcessing));
 }
 
 export function createHostConfigBridge(deps: { files?: LedgerFilesLike; now?: () => number; warn?: (m: string) => void } = {}): HostConfigBridge {
