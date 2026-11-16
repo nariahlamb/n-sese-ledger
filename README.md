@@ -2,7 +2,7 @@
 
 > **致后续接手本仓库的 AI（强制维护纪律）**
 > 1. **每次修改本仓库代码、标准表结构、推进预设或外部接口后，必须同步更新本 README**（至少更新「当前改造状态与未完成项」「表结构与世界书契约」及文末「改造记录」），严禁只改代码不留记录。
-> 2. **先读再改，改完必验**：涉及 `src/` 修改必须同步刷新 `source-files.sha256.json`，重建 `dist/index.js`，并运行 `npm test` 与 `npm run check`。未经用户明确指令，不擅自 `git commit` / `git push`。
+> 2. **先读再改，改完自动推仓（长期明确授权）**：涉及 `src/` 修改必须同步刷新 `source-files.sha256.json`，重建 `dist/index.js`，并运行 `npm test` 与 `npm run check`；全绿后同步递增版本号并**直接 `git commit` 与 `git push origin main`**（无需逐次询问，也不要打包 zip，详见 [AGENTS.md](AGENTS.md)）。
 > 3. **做角色卡联动必看**：第 3 节完整列出了台账默认 18 张表的表名/分组/列名、`SeseLedger-*` 世界书投影槽位、填表与剧情推进的宿主字段契约，写卡时直接对照，无需猜字段名。
 > 4. **设计基准**：排障与重构一律以本仓库既有契约与 TT/ST 宿主实态为准，不套用其他外部数据库插件的实现方式。
 
@@ -11,7 +11,7 @@
 ## 1. 定位与运行依赖
 
 - **扩展名称**：`瑟瑟台账`（`manifest.json` `loading_order: 210`，在 `n-sese-unified-statusbar` `200` 之后、`n-sese-phone` `220` 之前装载）
-- **当前版本**：`0.1.0-alpha.4`（基于 `63dc0b5` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
+- **当前版本**：`0.1.0-alpha.5`（基于 `63dc0b5` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
 - **宿主设置键**：`extensionSettings.sese_ledger_v1`（详见 [core/settings-store.ts](src/sese-ledger/core/settings-store.ts)）
 - **协同关系**：
   - 安装 `n-sese-unified-statusbar` 时，台账从状态栏设置面板打开工作台，并通过 `__ubWorldbookProjection` 共享同一主世界书写入队列、通过 `__ubWorldCognitionSnapshot` 读取世界认知快照（单开时自动安全降级）。
@@ -31,6 +31,7 @@
 | **手机 TT 填表防串轮次加固** | ✅ 代码+单测完成 | 新增 [message-gate.ts](src/sese-ledger/core/message-gate.ts) 过滤 `first_message/quiet/impersonate/command/extension`、让步并轮询等待下标 `id` 对应 AI 楼层正文物化、防切聊串台；`fillBusy` 改为 `pendingAutoFill` 结束后补跑不丢轮；`scribe.ts` 实现 `splitPlanByBatchSize` 按 `batchSize` 切批 |
 | **上下文标签剥离分层与逐楼清洗** | ✅ 代码+单测完成 | 同步 `contextKeepTags` + 剥离优先级保护（[context-strip.ts](src/unified-statusbar/core/context-strip.ts)），`scribe.ts`/`director-runtime.ts` 改为逐楼独立清洗后再拼接防跨楼误吞（`v0.1.0-alpha.4`） |
 | **工作台 UI 与模板持久化** | ✅ 代码+单测完成 | 奶油手账日间默认主题（支持深浅切换）；表格数据页重构为电脑端滑动网格布局并下线字段健康页签；跨卡记住并沿用当前模板（[settings/panel/](src/sese-ledger/settings/panel/shell.ts)） |
+| **进度 Toast 防误触与单开兜底** | ✅ 代码+单测完成 | `fill-notify.ts` 为进度 toast 补充 `sl-progress-toast` 单开/原版兜底半透明紧凑样式与 `30×30` 大 `×` 热区，捕获阶段拦截关闭钮旁 8px 缓冲带误触并转为关闭到后台（[fill-notify.ts](src/sese-ledger/core/fill-notify.ts) `v0.1.0-alpha.5`） |
 | **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **67 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表与三轮双开推进待持续真机验证 |
 
 ---
@@ -113,7 +114,7 @@
 
 ```powershell
 npm run build   # esbuild 打包 dist/index.js
-npm test        # node --test tests/*.test.mjs（当前 73 通过 / 3 跳过 / 0 失败）
+npm test        # node --test tests/*.test.mjs（当前 74 通过 / 3 跳过 / 0 失败）
 npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 完整性校验
 ```
 
@@ -125,6 +126,7 @@ npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 �
 
 | 日期 | 版本 / Commit | 改动范围与摘要 | 验证状态 |
 |---|---|---|---|
+| 2026-11-17 | `0.1.0-alpha.5` | `fill-notify.ts` 进度 toast 新增贴边防误触拦截与单开半透明/紧凑/30×30 大 `×` 兜底样式，防止点击关闭到后台时误触任务中止；新增 `tests/toast-ui.test.mjs` | `build` / `test` 74 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |
 | 2026-11-17 | `0.1.0-alpha.4` | 同步 `contextKeepTags` 保留标签提取与剥离标签优先级保护；`scribe.ts` 与 `director-runtime.ts` 改用 `stripWithContextMessages` 逐楼独立清洗后再拼接；扩展 `tests/context-strip.test.mjs` | `build` / `test` 73 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |
 | 2026-11-15 | `0.1.0-alpha.3` (`5f90879`) | 同步重写台账侧 `context-strip.ts` 为单遍栈式配对剥离，防止思维链内未闭合孤儿标签误吞 `<content>` 正文；新增 `tests/context-strip.test.mjs` | `build` / `test` 67 通过 3 跳过 / `check` 全绿 |
 | 2026-11-15 | (`0e76ad7`) | 加固手机 TT 自动填表：新增 `message-gate.ts` 过滤非剧情事件并轮询等待下标楼层物化；`fillBusy` 改为 `pendingAutoFill` 结束后补跑；`scribe.ts` 按 `batchSize` 切批；修复 `director-runtime.ts` `.trim()` 不一致；新增 `tests/scribe-turn-order.test.mjs` | `build` / `test` 66 通过 3 跳过 / `check` 全绿 |

@@ -71,12 +71,79 @@ function createDedup(now: () => number, windowMs = FAIL_DEDUP_WINDOW_MS) {
   };
 }
 
+const FALLBACK_STYLE_ID = 'sl-progress-toast-fallback-css';
+
+// 单开台账或宿主未启用状态栏通知美化时的兜底样式：半透明、紧凑，并放大关闭到后台的 × 热区。
+const FALLBACK_CSS = `
+#toast-container .toast.sl-progress-toast{
+  max-width:258px !important; width:fit-content !important; min-width:0 !important;
+  padding:5px 40px 6px 26px !important; border-radius:8px !important;
+  font-size:11px !important; line-height:1.38 !important;
+  background-color:rgba(30,36,48,.62) !important;
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+}
+#toast-container .toast.sl-progress-toast .toast-title{font-size:11.5px !important; line-height:1.3 !important;}
+#toast-container .toast.sl-progress-toast .toast-message{font-size:11px !important; line-height:1.38 !important;}
+#toast-container .toast.sl-progress-toast .toast-close-button{
+  position:absolute !important; top:2px !important; right:2px !important;
+  width:30px !important; height:30px !important; min-width:30px !important; min-height:30px !important;
+  font-size:18px !important; font-weight:700 !important; line-height:1 !important;
+  opacity:.85 !important; border-radius:6px !important;
+  background:rgba(255,255,255,.14) !important; padding:0 !important;
+  display:flex !important; align-items:center; justify-content:center;
+  z-index:4 !important; touch-action:manipulation;
+}
+#toast-container .toast.sl-progress-toast .toast-close-button::after{
+  content:"" !important; position:absolute !important;
+  top:-4px !important; right:-4px !important; bottom:-8px !important; left:-8px !important;
+  background:transparent !important;
+}
+`;
+
+function ensureFallbackCss(doc: Document | null | undefined): void {
+  if (!doc || !doc.head) return;
+  if (doc.getElementById('ub-notify-base-css') || doc.getElementById(FALLBACK_STYLE_ID)) return;
+  try {
+    const style = doc.createElement('style');
+    style.id = FALLBACK_STYLE_ID;
+    style.textContent = FALLBACK_CSS;
+    doc.head.appendChild(style);
+  } catch (_e) { /* ignore */ }
+}
+
 /** toastr 返回句柄（jQuery 对象或原生元素）→ 原生元素。 */
 function toastElementOf(handle: any): HTMLElement | null {
   if (!handle) return null;
   if (handle.nodeType === 1) return handle as HTMLElement;
   if (handle[0] && handle[0].nodeType === 1) return handle[0] as HTMLElement;
   return null;
+}
+
+/** 为进度 toast 放大关闭到后台热区并拦截贴边误触。 */
+function hardenProgressToastClose(handle: any): void {
+  const el = toastElementOf(handle);
+  if (!el) return;
+  el.classList?.add('sl-progress-toast');
+  ensureFallbackCss(el.ownerDocument);
+  const closeBtn = el.querySelector?.('.toast-close-button') as HTMLElement | null;
+  if (closeBtn) {
+    closeBtn.setAttribute('aria-label', '只关闭通知（任务在后台继续）');
+    closeBtn.setAttribute('title', '只关闭通知，任务继续在后台运行');
+  }
+  if ((el as any).__slCloseGuardAttached) return;
+  (el as any).__slCloseGuardAttached = true;
+  el.addEventListener?.('click', (ev: Event) => {
+    const target = ev.target as HTMLElement | null;
+    if (target && target.closest && target.closest('.toast-close-button')) return;
+    if (typeof MouseEvent !== 'undefined' && ev instanceof MouseEvent && closeBtn && typeof closeBtn.getBoundingClientRect === 'function') {
+      const r = closeBtn.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && ev.clientX >= r.left - 8 && ev.clientY <= r.bottom + 8) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        closeBtn.click();
+      }
+    }
+  }, true);
 }
 
 /** 原位改文案（句柄失效 = 已被宿主移除 → false，调用方另开一条）。 */
@@ -167,9 +234,13 @@ export function createProgressToast(deps: ProgressPersistOpts & { getToastr(): a
         // onClick 恒挂：未给回调时点击＝只关通知（toastr 的 onclick 分支自带 hideToast）
         handle = fn ? fn.call(toastr, t, title, {
           ...PERSIST_OPTS,
+          extraClasses: 'ub-persist sl-progress-toast',
           onclick: () => { try { opts?.onClick?.(); } catch (_e) { /* 终止动作失败不影响通知 */ } },
         }) : null;
-        if (handle) armAutoHide();
+        if (handle) {
+          hardenProgressToastClose(handle);
+          armAutoHide();
+        }
       } catch (_e) { /* 通知失败不影响主流程 */ }
     },
     close,
