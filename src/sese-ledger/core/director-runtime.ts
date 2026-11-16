@@ -28,7 +28,7 @@ import {
   type DriverPreset,
   type DirectorTaskRequest,
 } from './director';
-import { stripWithContextConfig } from '../../unified-statusbar/core/context-strip';
+import { stripWithContextMessages } from '../../unified-statusbar/core/context-strip';
 import type { LedgerLogEvent } from './ledger-log';
 import { describeErrorDetail } from './error-detail';
 import type { LedgerRuntime } from './runtime';
@@ -303,7 +303,7 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
     for (let i = chat.length - 1; i >= 0 && recent.length < turns; i--) {
       if (chat[i] && chat[i].is_user !== true && typeof chat[i].mes === 'string' && chat[i].mes) recent.unshift(chat[i].mes);
     }
-      const recentStory = stripWithContextConfig(recent.join('\n\n'));
+      const recentStory = stripWithContextMessages(recent);
       return {
         userInput,
         lastPlot,

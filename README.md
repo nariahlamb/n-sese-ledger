@@ -11,7 +11,7 @@
 ## 1. 定位与运行依赖
 
 - **扩展名称**：`瑟瑟台账`（`manifest.json` `loading_order: 210`，在 `n-sese-unified-statusbar` `200` 之后、`n-sese-phone` `220` 之前装载）
-- **当前版本**：`0.1.0-alpha.3`（最新提交基线 `5f90879`）
+- **当前版本**：`0.1.0-alpha.4`（基于 `63dc0b5` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
 - **宿主设置键**：`extensionSettings.sese_ledger_v1`（详见 [core/settings-store.ts](src/sese-ledger/core/settings-store.ts)）
 - **协同关系**：
   - 安装 `n-sese-unified-statusbar` 时，台账从状态栏设置面板打开工作台，并通过 `__ubWorldbookProjection` 共享同一主世界书写入队列、通过 `__ubWorldCognitionSnapshot` 读取世界认知快照（单开时自动安全降级）。
@@ -29,7 +29,7 @@
 | **P4 状态栏只读认知桥窄适配** | ✅ 代码+单测完成 | 新增 [statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) 消费状态栏 `window.__ubWorldCognitionSnapshot`：内置魔改规划继承角色 `knownFacts`（去重盲点）与合规入镜候选（主入口+参考），无候选时回落单开路径（[director.ts](src/sese-ledger/core/director.ts)、[director-runtime.ts](src/sese-ledger/core/director-runtime.ts)） |
 | **推进防异步串楼与手机输入兼容** | ✅ 代码+单测完成 | 规划前钉住 `PlanningTarget`（聊天身份+数组引用+稳定 ID/原文），写入前二次定位防切聊/删楼串写；修复 `locatePlanningTarget` `.trim()` 不一致导致的手机端输入法换行误删用户楼（[director-runtime.ts](src/sese-ledger/core/director-runtime.ts)） |
 | **手机 TT 填表防串轮次加固** | ✅ 代码+单测完成 | 新增 [message-gate.ts](src/sese-ledger/core/message-gate.ts) 过滤 `first_message/quiet/impersonate/command/extension`、让步并轮询等待下标 `id` 对应 AI 楼层正文物化、防切聊串台；`fillBusy` 改为 `pendingAutoFill` 结束后补跑不丢轮；`scribe.ts` 实现 `splitPlanByBatchSize` 按 `batchSize` 切批 |
-| **上下文标签剥离防误吞** | ✅ 代码+单测完成 | 同步将台账内嵌的 [context-strip.ts](src/unified-statusbar/core/context-strip.ts) 改为单遍栈式配对，修复思维链内孤儿标签吞没 `<content>` 正文（`v0.1.0-alpha.3`） |
+| **上下文标签剥离分层与逐楼清洗** | ✅ 代码+单测完成 | 同步 `contextKeepTags` + 剥离优先级保护（[context-strip.ts](src/unified-statusbar/core/context-strip.ts)），`scribe.ts`/`director-runtime.ts` 改为逐楼独立清洗后再拼接防跨楼误吞（`v0.1.0-alpha.4`） |
 | **工作台 UI 与模板持久化** | ✅ 代码+单测完成 | 奶油手账日间默认主题（支持深浅切换）；表格数据页重构为电脑端滑动网格布局并下线字段健康页签；跨卡记住并沿用当前模板（[settings/panel/](src/sese-ledger/settings/panel/shell.ts)） |
 | **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **67 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表与三轮双开推进待持续真机验证 |
 
@@ -113,7 +113,7 @@
 
 ```powershell
 npm run build   # esbuild 打包 dist/index.js
-npm test        # node --test tests/*.test.mjs（当前 67 通过 / 3 跳过 / 0 失败）
+npm test        # node --test tests/*.test.mjs（当前 73 通过 / 3 跳过 / 0 失败）
 npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 完整性校验
 ```
 
@@ -125,6 +125,7 @@ npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 �
 
 | 日期 | 版本 / Commit | 改动范围与摘要 | 验证状态 |
 |---|---|---|---|
+| 2026-11-17 | `0.1.0-alpha.4` | 同步 `contextKeepTags` 保留标签提取与剥离标签优先级保护；`scribe.ts` 与 `director-runtime.ts` 改用 `stripWithContextMessages` 逐楼独立清洗后再拼接；扩展 `tests/context-strip.test.mjs` | `build` / `test` 73 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |
 | 2026-11-15 | `0.1.0-alpha.3` (`5f90879`) | 同步重写台账侧 `context-strip.ts` 为单遍栈式配对剥离，防止思维链内未闭合孤儿标签误吞 `<content>` 正文；新增 `tests/context-strip.test.mjs` | `build` / `test` 67 通过 3 跳过 / `check` 全绿 |
 | 2026-11-15 | (`0e76ad7`) | 加固手机 TT 自动填表：新增 `message-gate.ts` 过滤非剧情事件并轮询等待下标楼层物化；`fillBusy` 改为 `pendingAutoFill` 结束后补跑；`scribe.ts` 按 `batchSize` 切批；修复 `director-runtime.ts` `.trim()` 不一致；新增 `tests/scribe-turn-order.test.mjs` | `build` / `test` 66 通过 3 跳过 / `check` 全绿 |
 | 2026-11-14 | (`79d5a8a`) | 落地 P1/P4：`plot-preset-*.json` 改为 `0～N` 上限召回与去固定模板；新增 `statusbar-cognition.ts` 消费状态栏 `__ubWorldCognitionSnapshot`；`director-runtime.ts` 防异步切聊天/删楼串写；跨仓联合测试 8 项 | `build` / `test` 60 通过 3 跳过 / `check` 全绿 |

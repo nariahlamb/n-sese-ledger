@@ -36,7 +36,7 @@ import { runFillSql } from './fill-sql';
 import { fillFailureText, type FillProgressEvent } from './fill-notify';
 import type { LedgerLogEvent } from './ledger-log';
 import { describeErrorDetail, describeErrorSummary } from './error-detail';
-import { stripWithContextConfig } from '../../unified-statusbar/core/context-strip';
+import { stripWithContextConfig, stripWithContextMessages } from '../../unified-statusbar/core/context-strip';
 import { aiFloorOfAnchor, aiFloorOrdinalAt, isAnchorCandidate, ledgerAnchorFor } from './floor-scope';
 import {
   FILL_BLOCK_IDS,
@@ -756,10 +756,10 @@ export function resolveScheduleGlobals(settings: FillerSettings): ScheduleGlobal
 }
 
 function storyTextOfIndices(chat: any[], indices: number[]): string {
-  return indices
+  const messages = indices
     .map((i) => (chat[i] && typeof chat[i].mes === 'string' ? chat[i].mes : ''))
-    .filter(Boolean)
-    .join('\n\n');
+    .filter(Boolean);
+  return stripWithContextMessages(messages);
 }
 
 /** 一批填表的钉住上下文：落点＝窗口最后一个 AI 楼；sources＝本次请求实际读过的全部楼层锚点。 */
@@ -991,7 +991,7 @@ async function runScheduledFillCore(deps: FillerDeps, opts: { signal?: AbortSign
           return null;
         }
         // 上下文只用 AI 回复（indices 恒为 AI 楼层）；过主项目「上下文标签剥离」（设置 → API）
-        const storyText = stripWithContextConfig(storyTextOfIndices(chat, group.indices));
+        const storyText = storyTextOfIndices(chat, group.indices);
         if (!storyText.trim()) return null;
         const ctx: FillPromptContext = { storyText, keywordText: storyText };
         const label = groupLabelOf(group);
@@ -1204,7 +1204,7 @@ async function runManualFillCore(deps: FillerDeps, opts: ManualFillOptions = {},
         continue;
       }
       // 同批各分组同时发出（同一批读同一份基线）；全部收齐后按组序落账，最后才进下一批
-      const storyText = stripWithContextConfig(storyTextOfIndices(chat, batch));
+      const storyText = storyTextOfIndices(chat, batch);
       const settled = await Promise.allSettled(buckets.map(async (bucket) => {
         const group = slotOf(bucket, bi, batch);
         const label = manualFillLabel('手动填表', bucket, multiGroup, bi, batches.length);
