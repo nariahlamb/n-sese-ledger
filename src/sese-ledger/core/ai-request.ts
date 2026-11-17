@@ -28,9 +28,15 @@ export const LEDGER_BLOCK_LABELS: Record<LedgerBlockId, string> = {
  * 场景、示例对话与 after 位置的世界书条目都不会进请求。
  */
 export type LedgerNativeSlot = Exclude<(typeof STANDARD_PROMPT_MIDDLE)[number], 'chat_history' | 'user_input'>;
+export type LedgerFillNativeSlot = Exclude<LedgerNativeSlot, 'dialogue_examples'>;
 
 export const LEDGER_NATIVE_SLOTS: readonly LedgerNativeSlot[] = STANDARD_PROMPT_MIDDLE.filter(
   (slot): slot is LedgerNativeSlot => slot !== 'chat_history' && slot !== 'user_input',
+);
+
+/** 填表专用原生槽位：在 LEDGER_NATIVE_SLOTS 基础上进一步剔除 dialogue_examples（主对话示例只给正文/推进参考文风，填表无需学说话腔）。 */
+export const LEDGER_FILL_NATIVE_SLOTS: readonly LedgerFillNativeSlot[] = LEDGER_NATIVE_SLOTS.filter(
+  (slot): slot is LedgerFillNativeSlot => slot !== 'dialogue_examples',
 );
 
 /** 各请求可用的固定块（顺序 = 默认顺序）。 */
@@ -193,7 +199,12 @@ export function blockMessageText(block: LedgerBlockId, contents: LedgerBlockCont
  * - 资料块/上下文块/上轮推进结果块 → 单条 system 消息（正文由调用方给定，已含各自抬头）。
  * - 空正文的块整块跳过（但参考资料块恒出：槽位需要落点）。
  */
-export function expandLedgerItems(items: LedgerPromptItem[], contents: LedgerBlockContents): ExpandedPromptEntry[] {
+export function expandLedgerItems(
+  items: LedgerPromptItem[],
+  contents: LedgerBlockContents,
+  opts?: { nativeSlots?: readonly LedgerNativeSlot[] },
+): ExpandedPromptEntry[] {
+  const nativeSlots = opts?.nativeSlots ?? LEDGER_NATIVE_SLOTS;
   const out: ExpandedPromptEntry[] = [];
   for (const item of items) {
     if (!isLedgerBlockItem(item)) {
@@ -204,8 +215,8 @@ export function expandLedgerItems(items: LedgerPromptItem[], contents: LedgerBlo
     }
     if (item.block === 'scan') {
       out.push({ role: 'system', content: scanBlockText(contents) });
-      // 参考资料块＝1A 原生中段整组槽位（世界书 before/after + 用户人设/角色卡描述/性格/场景/示例对话）
-      out.push(...LEDGER_NATIVE_SLOTS);
+      // 参考资料块＝1A 原生中段整组槽位（填表自动剔除 dialogue_examples）
+      out.push(...nativeSlots);
       continue;
     }
     // 表数据块应在调用方（buildPromptItems）按项配置 materialize 成普通段；漏到这里＝无内容，整体不出条

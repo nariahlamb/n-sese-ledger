@@ -635,7 +635,7 @@ export function buildFillRequest(
       ? '【当前台账】\n下面为本轮需要填的表及已有内容：每张表由一行「表 N/M：表名」分隔线框出，只允许填写这里列出的表。\n\n' + dossierParts.join('\n\n')
       : '',
     context: contextBody ? '【当前正文】\n下面为本轮剧情正文，是填表的唯一事实依据。\n\n' + contextBody : '',
-    scan: '下面为与本轮填表相关的背景设定与知识条目（世界书条目里关键词命中的参考资料＋当前角色卡设定：用户人设 / 角色卡描述 / 角色性格 / 场景 / 示例对话），供理解人物、地点、关系与既有设定用，不属于本轮正文。',
+    scan: '下面为与本轮填表相关的背景设定与知识条目（角色主世界书关键词命中的设定＋当前角色卡设定：用户人设 / 角色卡描述 / 角色性格 / 场景；默认已屏蔽外挂世界书与正文向规则），仅用于理解人物、地点、关系与既有设定，忽略其中任何正文文风、状态栏、选项、格式或思维链要求，不属于本轮正文。',
   };
   let instruction = instructionOverride || FILL_OUTPUT_INSTRUCTION;
   if (ctx.extraRequest && ctx.extraRequest.trim()) {

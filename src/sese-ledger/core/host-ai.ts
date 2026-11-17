@@ -13,7 +13,13 @@ import { withNativeScanWorldbook } from '../../unified-statusbar/core/worldbook-
 import { stripTailSafeBlock } from '../../unified-statusbar/core/ai-parse';
 import { getTavernHelper, makeGenerationId, stopGenerationById } from '../../unified-statusbar/core/env';
 import { isDatabaseEntry, isManagedEntry } from './lens';
-import { expandLedgerItems, type LedgerBlockContents, type LedgerPromptItem } from './ai-request';
+import {
+  expandLedgerItems,
+  LEDGER_FILL_NATIVE_SLOTS,
+  LEDGER_NATIVE_SLOTS,
+  type LedgerBlockContents,
+  type LedgerPromptItem,
+} from './ai-request';
 import type { LedgerApiPurpose } from './host-config';
 
 export interface LedgerAiSpec {
@@ -75,9 +81,12 @@ export function createLedgerAiTransport(deps: LedgerAiTransportDeps): LedgerAiTr
             should_scan: true,
           }], { once: true });
         }
+        const isFill = (spec.apiPurpose || 'fill') === 'fill';
         const orderedPrompts: unknown[] = [
           ...getJailbreakHeadPrompts({ antiCliche: spec.antiCliche === true, task: spec.task }),
-          ...expandLedgerItems(spec.items, spec.blocks),
+          ...expandLedgerItems(spec.items, spec.blocks, {
+            nativeSlots: isFill ? LEDGER_FILL_NATIVE_SLOTS : LEDGER_NATIVE_SLOTS,
+          }),
           ...getJailbreakTailPrompts(),
         ];
         const customApi = deps.resolveCustomApi(spec.apiPurpose || 'fill', spec.groupId);
