@@ -327,6 +327,7 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     border: 1px solid var(--slp-line); border-radius: 6px;
     padding: 12px 13px 11px;
   }
+  .slp-chaos-card + .slp-chaos-card { margin-top: 10px; }
   .slp-chaos-top {
     display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
@@ -552,6 +553,8 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   var RECALL = parseRecall(TAIL);
   var SOUL = parseSoul(TAIL);
   var CHAOS = parseChaosText(tag(TAIL, 'chaos'));
+  // 后台切入：状态栏事件池被选中的那一条（<world_cue>），与 <chaos> 全局意外分工
+  var WORLD_CUE = tag(TAIL, 'world_cue');
   var BG = parseBg(tag(RAW, 'chaos_bg') || tag(TAIL, 'chaos_bg'));
   var CHARS = parseCharCounts(tag(RAW, 'chaos_char') || tag(TAIL, 'chaos_char'));
   var SPOTS = parseSpot(TAIL);
@@ -565,7 +568,7 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   }
   var PROACTIVE_COUNT = 0;
   for (var pi = 0; pi < SOUL.length; pi++) if (hasProactive(SOUL[pi])) PROACTIVE_COUNT++;
-  var GLOBAL_EVENT = CHAOS ? 1 : 0;
+  var GLOBAL_EVENT = (CHAOS ? 1 : 0) + (WORLD_CUE ? 1 : 0);
 
   function pct(v) {
     var n = Number(v);
@@ -716,7 +719,7 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     if (key === 'recall') return { title: '召回', count: RECALL.length + ' 条' };
     if (key === 'cast') return { title: '人物', count: SOUL.length + ' 位' };
     if (key === 'spot') return { title: '候选地点', count: SPOTS.length + ' 处' };
-    return { title: '意外', count: '' };
+    return { title: '动态', count: '' };
   }
 
   function sectionHeader(title, count) {
@@ -949,6 +952,14 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
 
   function renderChaos() {
     var pane = el('div', 'slp-pane');
+    if (WORLD_CUE) {
+      var cueCard = el('div', 'slp-chaos-card');
+      var cueTop = el('div', 'slp-chaos-top');
+      cueTop.appendChild(el('span', null, '后台切入'));
+      cueCard.appendChild(cueTop);
+      cueCard.appendChild(el('div', 'slp-chaos-text', WORLD_CUE));
+      pane.appendChild(cueCard);
+    }
     var card = el('div', 'slp-chaos-card');
     if (CHAOS) {
       var top = el('div', 'slp-chaos-top');
@@ -979,7 +990,7 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     if (RECALL.length) tabs.push({ key: 'recall', num: '01', label: '召回', count: RECALL.length, badge: 0 });
     if (SOUL.length) tabs.push({ key: 'cast', num: '02', label: '人物', count: SOUL.length, badge: PROACTIVE_COUNT });
     if (SPOTS.length) tabs.push({ key: 'spot', num: '03', label: '地点', count: SPOTS.length, badge: 0 });
-    if (BG != null || CHAOS) tabs.push({ key: 'chaos', num: '04', label: '意外', count: 0, badge: GLOBAL_EVENT });
+    if (BG != null || CHAOS || WORLD_CUE) tabs.push({ key: 'chaos', num: '04', label: '动态', count: 0, badge: GLOBAL_EVENT });
 
     root.appendChild(renderHead(tabs.length > 0));
     if (!tabs.length || state.collapsed) return;

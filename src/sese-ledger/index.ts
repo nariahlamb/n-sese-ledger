@@ -18,7 +18,7 @@ import type { LedgerIndexFile, WorkbookJson } from './core/types';
 import { createLedgerRuntime } from './core/runtime';
 import { createFieldContractRegistry } from './core/field-contracts';
 import { createLegacyFace } from './core/legacy-face';
-import { createExtensionSettingsStore, isDriverEnabled, isProgressPersistEnabled } from './core/settings-store';
+import { createExtensionSettingsStore, isDriverEnabled, isProgressPersistEnabled, type SettingsStore } from './core/settings-store';
 import { INDEX_FILE_NAME } from './core/identity';
 import { createBook, projectWorkbook, isStoppedTable, resolveTable, resolveColumn } from './core/book';
 import { normalizeTemplateAny, convergeBookToTemplate } from './core/blueprint';
@@ -32,7 +32,7 @@ import { migrateFromDbFrames, planTemplateAlignment } from './core/migrator';
 import { createDirectorRuntime } from './core/director-runtime';
 import { createHostSendIndicator } from './core/host-send-indicator';
 import { syncPlotRegex } from './core/plot-regex';
-import { BUILTIN_PRESET_NAMES, DEFAULT_PRESET_NAME, builtinDriverPreset, defaultDriverPreset, isValidDriverPreset, normalizeDriverPreset } from './core/director';
+import { BUILTIN_PRESET_NAMES, DEFAULT_PRESET_NAME, builtinDriverPreset, defaultDriverPreset, isStatusbarBridgeEnabled, isValidDriverPreset, normalizeDriverPreset } from './core/director';
 import { createLedgerAiTransport } from './core/host-ai';
 import { createLedgerLog } from './core/ledger-log';
 import { FILL_BLOCK_IDS, normalizePromptSpecs, type LedgerPromptItemSpec } from './core/ai-request';
@@ -187,12 +187,26 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   const STANDARD_TEMPLATE = standardNorm.workbook;
   const STANDARD_TEMPLATE_V2 = { ...standardNorm.v2, name: STANDARD_PRESET_NAME };
 
+  /** 状态栏世界书投影刷新（world / character-dynamic）：推进开关 / 预设名变化、台账初始化完成时调用。
+   *  桥挂在状态栏窗口（parent/top）；桥缺席＝状态栏未装载或版本过旧，静默跳过（台账单开零依赖）。 */
+  function notifyStatusbarWorldbookSync(): void {
+    try {
+      for (const win of signalWindows()) {
+        const bridge = (win as any)?.__ubWorldbookProjection;
+        if (!bridge || typeof bridge.request !== 'function') continue;
+        for (const id of ['world', 'character-dynamic']) {
+          try { bridge.request(id, 'config-change'); } catch (_e) { /* 单族失败不影响另一族 */ }
+        }
+      }
+    } catch (_e) { /* 桥不可用＝单开 */ }
+  }
+
   // ---- 设置（extensionSettings sese_ledger_v1） ----
   // 上游 ST/TT 的落盘 API 是 saveSettingsDebounced（防抖），没有 saveExtensionSettings；
   // 兜底再试全局 SillyTavern（getContext 不可用时 ctx0 本身就是它）。
   const ctx0 = getStContext();
   let settingsPersistWarned = false;
-  const settings = createExtensionSettingsStore({
+  const settingsBase = createExtensionSettingsStore({
     targets: [ctx0, (hostWindow() as any).SillyTavern, (hostWindow() as any).TavernHelper?.SillyTavern],
     onPersistUnavailable: () => {
       if (settingsPersistWarned) return;
@@ -200,6 +214,19 @@ export function bootLedger(): { dispose: () => Promise<void> } {
       warn('酒馆未提供设置持久化接口（saveSettingsDebounced），台账设置与预设刷新后可能丢失', '配置');
     },
   });
+  // 推进开关 / 预设名一变就同步状态栏的世界书投影（world / character-dynamic）：
+  // 状态栏据此在不重复喂料的前提下重排「世界动态」与角色动态族；桥缺席时静默。
+  const settings: SettingsStore = {
+    ...settingsBase,
+    async update(patch) {
+      const next = await settingsBase.update(patch);
+      if (Object.prototype.hasOwnProperty.call(patch, 'driverEnabled')
+        || Object.prototype.hasOwnProperty.call(patch, 'driverPresetName')) {
+        notifyStatusbarWorldbookSync();
+      }
+      return next;
+    },
+  };
 
   // ---- 主项目 API 预设只读桥（host-config；请求前尽力自举，配置变更即时跟随） ----
   const hostConfig: HostConfigBridge = createHostConfigBridge({ warn: (m) => warn(m, '配置') });
@@ -674,6 +701,8 @@ export function bootLedger(): { dispose: () => Promise<void> } {
       blocks: spec.blocks,
       scanText: spec.scanText,
       apiPurpose: 'driver',
+      // 状态栏自行投影世界动态时暂停该条目（角色动态族保留）：避免 scan 与尾部事件池重复喂料
+      ...(spec.suspendWorldDigest === true ? { suspendWorldDigest: true } : {}),
       // 推进不剔除台账/数据库投影条目（角色现行数据靠关键词命中进上下文）；黑名单两份照常生效
     }, opts),
     readDriverConfig: () => {
@@ -904,6 +933,8 @@ export function bootLedger(): { dispose: () => Promise<void> } {
   // 初始装载：当前聊天
   void runtime.onChatChanged().then(() => {
     void refreshWorldbook();
+    // 台账就绪即让状态栏按「允许被台账消费」的口径重排世界书投影（世界动态 / 角色动态）
+    notifyStatusbarWorldbookSync();
   });
 
   // ---- canonical API ----
@@ -1003,6 +1034,19 @@ export function bootLedger(): { dispose: () => Promise<void> } {
       replayInvisible: (opts?: { dryRun?: boolean }) => runtime.replayInvisibleEntries(opts),
     },
     bakeStateAt(aiFloor: number) { return runtime.bakeStateAt(aiFloor); },
+    /** 推进是否正与状态栏后台事件桥联动：推进开着、当前不是真数据库旁观、且当前预设允许桥接。 */
+    isDriverWorldBridgeActive(): boolean {
+      if (realDbPresent) return false;
+      const s = settings.get();
+      if (!isDriverEnabled(s)) return false;
+      const name = String(s.driverPresetName || DEFAULT_PRESET_NAME);
+      const preset = builtinDriverPreset(name)
+        || normalizeDriverPreset((s.plotPresets || {})[name])
+        || defaultDriverPreset();
+      return isStatusbarBridgeEnabled(preset);
+    },
+    /** 手动刷新状态栏世界书投影（world / character-dynamic）；桥缺席时静默。 */
+    notifyStatusbarWorldbookSync(): void { notifyStatusbarWorldbookSync(); },
     driver: {
       /** 内置预设定名清单（工作台下拉的固定项）。 */
       builtinNames(): string[] { return [...BUILTIN_PRESET_NAMES]; },

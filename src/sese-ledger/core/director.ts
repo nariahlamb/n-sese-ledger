@@ -76,6 +76,8 @@ export interface DriverPreset {
   finalDirectiveTemplate: string;
   /** 匹配替换参数（可选；占位符 {{意外倾向}} 等）。 */
   rates?: DriverRates;
+  /** 状态栏后台事件桥：true/false 为显式开关；缺省按旧口径（内置魔改召回或模板含 {{world_cue}}）自动判定。 */
+  statusbarBridge?: boolean;
 }
 
 /** 台账推进预设导出/导入标记（读写只认此格式；旧库 plotSettings 形态一律拒绝）。 */
@@ -113,6 +115,7 @@ export function normalizeDriverPreset(value: unknown): DriverPreset | null {
     tags: [...new Set([...splitTags(raw.tags), ...splitTags(raw.injectTags)])].join(','),
     promptGroup: promptGroup as DriverPromptMessage[],
     finalDirectiveTemplate: raw.finalDirectiveTemplate,
+    ...(typeof raw.statusbarBridge === 'boolean' ? { statusbarBridge: raw.statusbarBridge } : {}),
     ...(raw.rates && typeof raw.rates === 'object' ? { rates: raw.rates as DriverRates } : {}),
   };
 }
@@ -124,6 +127,88 @@ export function isValidDriverPreset(value: unknown): value is DriverPreset {
 
 export const SL_PLOT_FIELD = 'sl_plot';
 export const SL_PLOT_TASKS_FIELD = 'sl_plot_tasks';
+/** 隐藏回执落点：本轮事件池挑选结果（不进 tags、不进最终指令模板，只随自产用户楼字段回读）。 */
+export const SL_WORLD_ACK_FIELD = 'sl_world_ack';
+
+/** 回执的一条 pick（id 来自 <statusbar_events> 的 [id]）。 */
+export interface WorldAckPick {
+  id: string;
+  /** 落在哪个输出标签：world_cue（后台切入）或 chaos（全局意外）。 */
+  targetTag: string;
+  reason: string;
+}
+
+export interface WorldAck {
+  version: 1;
+  chatIdentity: string;
+  picked: WorldAckPick | null;
+  /** 本轮评估过但故意压住的 id（幻觉 id 已被过滤）。 */
+  skippedIds: string[];
+  skippedReason: string;
+}
+
+/** id 分隔：逗号/顿号/分号/空白都算（回执由 AI 手写，不给它记标点的负担）。 */
+const ACK_ID_SEPARATOR = /[,，、;；\s]+/;
+
+function ackIds(text: string): string[] {
+  return String(text || '')
+    .split(ACK_ID_SEPARATOR)
+    .map((s) => s.trim().replace(/^[\s`'"“”‘’\[\]()（）]+|[\s`'"“”‘’\[\]()（）]+$/g, ''))
+    .filter((s) => !!s && !/^(无|none|-|—)$/i.test(s));
+}
+
+/** 回执里的目标标签：宽容大小写与多余解释。 */
+function ackTargetTag(text: string): string {
+  const value = String(text || '').trim().toLowerCase();
+  if (!value) return '';
+  if (value === 'world_cue' || value === 'chaos') return value;
+  if (/world_cue/.test(value)) return 'world_cue';
+  if (/(^|[^a-z])chaos([^a-z]|$)/.test(value)) return 'chaos';
+  return '';
+}
+
+/** 解析原始输出末尾的 <world_ack> 回执：容忍中英文冒号、pick/picked、skip/skipped、逗号/顿号分隔；
+ *  给了 validIds 时过滤掉不在本轮事件池里的幻觉 id（pick 整条作废，skip 逐条丢弃）。
+ *  既没 pick 也没 skip ＝ 没有可记录的挑选，返回 null。 */
+export function extractWorldAck(raw: string, validIds?: ReadonlySet<string>, chatIdentity?: string | null): WorldAck | null {
+  const block = extractTag(String(raw || ''), 'world_ack');
+  if (!block) return null;
+  const valid = validIds && validIds.size > 0 ? validIds : null;
+  const accept = (id: string): boolean => !!id && (!valid || valid.has(id));
+  let picked: WorldAckPick | null = null;
+  const skipped: string[] = [];
+  let skippedReason = '';
+  for (const rawLine of block.split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^[-*·]\s*/, '');
+    if (!line) continue;
+    const matched = line.match(/^(pick(?:ed)?|skip(?:ped)?)\s*[:：]\s*(.*)$/i);
+    if (!matched) continue;
+    const kind = matched[1].toLowerCase();
+    const body = matched[2].trim();
+    const fields = body.split(/[|｜]/).map((s) => s.trim());
+    if (kind.startsWith('pick')) {
+      const id = ackIds(fields[0])[0] || '';
+      if (!accept(id)) continue; // 不在本轮事件池里的 id ＝ 幻觉，整条 pick 作废
+      const targetTag = ackTargetTag(fields[1] || '') || ackTargetTag(body);
+      const reason = (targetTag && fields.length > 2 ? fields.slice(2) : fields.slice(1)).join(' | ').trim();
+      picked = { id, targetTag, reason };
+      continue;
+    }
+    for (const id of ackIds(fields[0])) {
+      if (!accept(id) || skipped.includes(id)) continue;
+      skipped.push(id);
+    }
+    if (!skippedReason) skippedReason = fields.slice(1).join(' | ').trim();
+  }
+  if (!picked && skipped.length === 0) return null;
+  return {
+    version: 1,
+    chatIdentity: String(chatIdentity || ''),
+    picked,
+    skippedIds: skipped,
+    skippedReason,
+  };
+}
 
 // ===== 前端投骰（数据库 `<random id=…>` + `$random:xxx` 的台账等价物） =====
 
@@ -293,16 +378,27 @@ export interface AssembleInput {
   raw: string;
 }
 
+/** 正则元字符转义（标签名进动态正则需要）。 */
+function escapeRegExp(text: string): string {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * 组装最终指令（替换用户消息的文本）：{{本轮输入}} 原文；{{标签}} → `<标签>内容</标签>`。
- * 标签内容缺失/为空 → 占位符整体消失；模板里没写占位符的标签不输出（不再自动追加到末尾）。
+ * 标签内容缺失/为空 → 占位符整体消失（独占一行时连空行一并去掉）；模板里没写占位符的标签不输出。
  */
 export function assembleFinalDirective(input: AssembleInput): string {
   const { preset, userInput, raw } = input;
   let out = String(preset.finalDirectiveTemplate || '').split('{{本轮输入}}').join(userInput);
   for (const tag of splitTags(preset.tags)) {
     const content = extractTag(raw, tag);
-    out = out.split(`{{${tag}}}`).join(content ? `<${tag}>${content}</${tag}>` : '');
+    if (content) {
+      out = out.split(`{{${tag}}}`).join(`<${tag}>${content}</${tag}>`);
+      continue;
+    }
+    // 空占位：连它独占的那一行一起去掉（模板里 {{world_cue}} 多数轮次为空，不能留出多余空行）
+    out = out.replace(new RegExp(`^[\\t ]*\\{\\{${escapeRegExp(tag)}\\}\\}[\\t ]*(?:\\r?\\n|$)`, 'gm'), '');
+    out = out.split(`{{${tag}}}`).join('');
   }
   return out;
 }
@@ -327,6 +423,16 @@ export const BUILTIN_PRESET_NAMES: readonly string[] = ['魔改召回', '极速�
 
 /** 缺省预设名（未选 / 被删时回落；＝内置第一项）。 */
 export const DEFAULT_PRESET_NAME = BUILTIN_PRESET_NAMES[0];
+
+/** 状态栏后台事件桥是否启用：显式 true/false 优先；缺省按旧口径自动判定
+ *  （内置魔改召回，或最终指令模板已占位 {{world_cue}}）。 */
+export function isStatusbarBridgeEnabled(preset: DriverPreset | null | undefined): boolean {
+  if (!preset) return false;
+  if (preset.statusbarBridge === true) return true;
+  if (preset.statusbarBridge === false) return false;
+  return preset.name === BUILTIN_PRESET_NAMES[0]
+    || String(preset.finalDirectiveTemplate || '').includes('{{world_cue}}');
+}
 
 /** 资产文件外壳（＝导出格式 `{format,schemaVersion,preset}`）；无外壳时按裸预设读。 */
 interface PlotPresetAssetFile { format?: string; schemaVersion?: number; preset?: unknown }
@@ -385,6 +491,8 @@ export interface DirectorTaskRequest {
   blocks: LedgerBlockContents;
   /** 触发注入素材＝上轮正文 ＋ 本轮输入（只喂绿灯扫描，不进提示词）。 */
   scanText: string;
+  /** 状态栏已自行投影「世界演化-世界动态」时=true：扫描钩一并暂停该条目，防与尾部事件池重复喂料。 */
+  suspendWorldDigest?: boolean;
 }
 
 export interface DirectorRequestDeps {
@@ -478,20 +586,28 @@ export async function runPlanningRequest(
   const blocks = buildPromptBlocks(ctx);
   const scanText = buildPromptScanText(ctx);
   const items = buildPromptItems(preset, ctx, { resolveTableBlock: deps.resolveTableBlock });
-  // P4 是内置魔改预设的窄适配；不改预设 schema，也不给用户自定义预设暗中追加提示段。
-  if (preset.name === BUILTIN_PRESET_NAMES[0] && ctx.statusbarSnapshot) {
+  // 状态栏桥只对声明了 bridge 的预设生效（内置魔改召回 / 模板含 {{world_cue}} / 显式勾选）；
+  // 不改预设 schema，也不给用户自定义预设暗中追加提示段。
+  if (isStatusbarBridgeEnabled(preset) && ctx.statusbarSnapshot) {
     const snapshot = ctx.statusbarSnapshot;
     items.push({ kind: 'segment', role: 'system', content: buildStatusbarCognitionPrompt(snapshot) });
-    const candidate = buildStatusbarCandidatePrompt(snapshot);
-    if (candidate) items.push({ kind: 'segment', role: 'system', content: candidate });
+    const events = buildStatusbarCandidatePrompt(snapshot);
+    if (events) items.push({ kind: 'segment', role: 'system', content: events });
   }
+  const task: DirectorTaskRequest = {
+    task: String(preset.systemPrompt || ''),
+    items,
+    blocks,
+    scanText,
+    ...(ctx.statusbarSnapshot ? { suspendWorldDigest: Boolean(ctx.statusbarSnapshot.worldbookDelegated) } : {}),
+  };
   const min = Math.max(preset.minLength, 0);
   const maxRetries = Math.max(0, preset.maxRetries);
   let last = '';
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (signal?.aborted) return aborted;
     try {
-      const raw = await deps.requestTask({ task: String(preset.systemPrompt || ''), items, blocks, scanText }, { signal });
+      const raw = await deps.requestTask(task, { signal });
       last = String(raw || '').trim();
       if (!last) {
         errors.push(`AI 返回空回复（第 ${attempt + 1}/${maxRetries + 1} 次）`);

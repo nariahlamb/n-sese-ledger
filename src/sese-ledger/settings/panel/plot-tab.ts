@@ -7,6 +7,7 @@ import {
   BUILTIN_PRESET_NAMES,
   builtinDriverPreset,
   defaultDriverPreset,
+  isStatusbarBridgeEnabled,
   isValidDriverPreset,
   normalizeDriverPreset,
   normalizeRates,
@@ -78,6 +79,8 @@ export function renderPlotTab(ctx: TabCtx, pane: HTMLElement): void {
   pane.appendChild(presetCard);
   presetCard.querySelector('#slw-p-select')!.addEventListener('change', async (e) => {
     await deps.settings.update({ driverPresetName: (e.target as HTMLSelectElement).value });
+    // 换预设可能换掉「联动状态栏后台事件」口径：让状态栏按新口径重排世界书投影
+    deps.canonical.notifyStatusbarWorldbookSync?.();
     ctx.refresh('plot');
   });
   presetCard.querySelector('#slw-p-edit')!.addEventListener('click', () => openPlotPresetEditor(ctx, currentName));
@@ -91,6 +94,7 @@ export function renderPlotTab(ctx: TabCtx, pane: HTMLElement): void {
     if (BUILTIN_PRESET_NAMES.includes(name)) { deps.warn(`「${name}」是内置预设名，改为「导入的推进预设」保存`); preset.name = '导入的推进预设'; }
     const finalName = String(preset.name || '导入的推进预设');
     await deps.canonical.driver.setPreset(preset, finalName);
+    deps.canonical.notifyStatusbarWorldbookSync?.();
     deps.notify(`推进预设「${finalName}」已导入`);
     ctx.refresh('plot');
   });
@@ -150,6 +154,7 @@ function openPlotPresetEditor(ctx: TabCtx, currentName: string): void {
     </fieldset>
 
     <fieldset class="fs"><legend>全局与最终指令</legend>
+      <div class="slw-row"><label style="min-width:auto"><input type="checkbox" class="check" data-b="statusbarBridge" ${isStatusbarBridgeEnabled(draft) ? 'checked' : ''}> 联动状态栏后台事件</label></div>
       <div class="slw-row"><label>上下文层数</label><input type="number" data-g="contextTurnCount" value="${draft.contextTurnCount}" style="width:64px">
         <span class="slw-muted">＝【上轮正文】取最近几层 AI 回复</span></div>
       <div class="slw-row" style="align-items:flex-start"><label style="padding-top:6px">最终指令模板</label>
@@ -200,6 +205,8 @@ function openPlotPresetEditor(ctx: TabCtx, currentName: string): void {
       if (key === 'contextTurnCount') (n as HTMLInputElement).value = String(draft.contextTurnCount ?? 3);
       else (n as HTMLTextAreaElement).value = String((draft as any)[key] ?? '');
     });
+    const bridgeBox = content.querySelector('[data-b="statusbarBridge"]') as HTMLInputElement | null;
+    if (bridgeBox) bridgeBox.checked = isStatusbarBridgeEnabled(draft);
   };
 
   const mountSegments = (): void => {
@@ -259,6 +266,14 @@ function openPlotPresetEditor(ctx: TabCtx, currentName: string): void {
     n.addEventListener('input', apply);
     n.addEventListener('change', apply);
   });
+  content.querySelectorAll('[data-b]').forEach((n) => {
+    const apply = (): void => {
+      // 取消勾选＝显式关闭（statusbarBridge=false 优先于模板自动判定）
+      draft.statusbarBridge = (n as HTMLInputElement).checked;
+      syncDirty();
+    };
+    n.addEventListener('change', apply);
+  });
 
   mountSegments();
 
@@ -292,6 +307,7 @@ function openPlotPresetEditor(ctx: TabCtx, currentName: string): void {
     if (isBuiltin || draftReplaced) { deps.warn('该预设不可删除'); return; }
     if (!await confirmDialog(deps, `删除预设「${draftName}」？`, { okText: '删除预设', danger: true })) return;
     await deps.canonical.driver.deletePreset(draftName);
+    deps.canonical.notifyStatusbarWorldbookSync?.();
     deps.notify(`预设「${draftName}」已删除`);
     handle?.close(true);
     ctx.refresh('plot');
@@ -321,6 +337,7 @@ function openPlotPresetEditor(ctx: TabCtx, currentName: string): void {
     saveBtn.textContent = '保存中…';
     try {
       await deps.canonical.driver.setPreset(draft, saveName);
+      deps.canonical.notifyStatusbarWorldbookSync?.();
       deps.notify(`推进预设「${saveName}」已保存`);
       handle?.close(true);
       ctx.refresh('plot');

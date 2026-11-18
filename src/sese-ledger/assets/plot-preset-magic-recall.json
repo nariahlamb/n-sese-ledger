@@ -3,11 +3,12 @@
   "schemaVersion": 2,
   "preset": {
     "name": "魔改召回·精简版",
+    "statusbarBridge": true,
     "systemPrompt": "",
     "contextTurnCount": 2,
     "minLength": 0,
     "maxRetries": 1,
-    "tags": "recall,spot,soul,chaos,chaos_bg,chaos_char",
+    "tags": "recall,spot,soul,chaos,chaos_bg,chaos_char,world_cue",
     "promptGroup": [
       {
         "role": "system",
@@ -60,7 +61,7 @@
         "content": "<task_spot>\n任务：根据当前局势与上方【已探索地点概览】表数据块，推测接下来可能前往的地点，输出 <spot>。\n- 优先使用概览中已有地点，并拼出完整链条（如 A楼-B房间-卧室）；不要随意改写已有地点的链条与名称。\n- 需要新地点时，参考现有层级结构命名。\n- 最多两个地点，用逗号分隔。\n\n<spot>\n地点A,地点B\n</spot>\n</task_spot>"
       }
     ],
-    "finalDirectiveTemplate": "以下是用户的本轮输入：\n<本轮用户输入>\n{{本轮输入}}\n</本轮用户输入>\n务必完整呈现用户输入内容，主角扮演请严格遵照主角人设！角色仅在有自身动机、关系基础和合适时机时主动表达和行动；否则顺应当前互动，不为了主动而主动。出场人物尽可能来自于已有信息人物，不随意编造。\n本轮召回：\n{{recall}}\n\n以下内容须在正文中自然遵从演绎，不得直接引用编码或标签。\n{{soul}}\n[soul] 段1=认知边界；段2=拒绝/回避意图（无则写“无”）；段3（若有）=角色主动行为；首行 nsfw＝本轮进入 NSFW 场景。\n{{chaos}}\n候选前往地点：\n{{spot}}。",
+    "finalDirectiveTemplate": "以下是用户的本轮输入：\n<本轮用户输入>\n{{本轮输入}}\n</本轮用户输入>\n务必完整呈现用户输入内容，主角扮演请严格遵照主角人设！角色仅在有自身动机、关系基础和合适时机时主动表达和行动；否则顺应当前互动，不为了主动而主动。出场人物尽可能来自于已有信息人物，不随意编造。\n本轮召回：\n{{recall}}\n\n以下内容须在正文中自然遵从演绎，不得直接引用编码或标签。\n{{soul}}\n[soul] 段1=认知边界；段2=拒绝/回避意图（无则写“无”）；段3（若有）=角色主动行为；首行 nsfw＝本轮进入 NSFW 场景。\n{{chaos}}\n{{world_cue}}\n候选前往地点：\n{{spot}}。",
     "rates": {
       "rateMain": 1,
       "ratePersonal": 0.3,

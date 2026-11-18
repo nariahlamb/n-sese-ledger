@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { build } from 'esbuild';
+import { JSDOM } from 'jsdom';
 
 const ledgerRoot = fileURLToPath(new URL('..', import.meta.url));
 const statusbarRoot = path.resolve(ledgerRoot, '../n-sese-unified-statusbar');
@@ -29,6 +30,21 @@ const sbTypes = await load('src/unified-statusbar/core/world-engine/world-types.
 const sbSnapshot = await load('src/unified-statusbar/core/world-engine/world-snapshot.ts', statusbarRoot);
 const sbIntrusion = await load('src/unified-statusbar/core/world-engine/world-intrusion.ts', statusbarRoot);
 const sbWorldbook = await load('src/unified-statusbar/core/world-engine/world-worldbook.ts', statusbarRoot);
+const sbWorldWindow = await (async () => {
+  const prevWin = globalThis.window;
+  const prevDoc = globalThis.document;
+  const dom = new JSDOM('<!doctype html><body></body>');
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  try {
+    return await load('src/unified-statusbar/renderers/world-window.ts', statusbarRoot);
+  } finally {
+    if (prevWin === undefined) delete globalThis.window;
+    else globalThis.window = prevWin;
+    if (prevDoc === undefined) delete globalThis.document;
+    else globalThis.document = prevDoc;
+  }
+})();
 const sbAnchor = await load('src/unified-statusbar/core/external-story-store.ts', statusbarRoot);
 
 const CHAT_KEY = 'chat_uuid_1';
@@ -126,6 +142,9 @@ test('跨仓：状态栏真实快照 → 台账窄适配读到同一聊天身份
   const normalized = ledgerRead(snap);
   assert.ok(normalized, '台账必须能读状态栏真实输出，否则双开等于单开');
   assert.equal(normalized.chatIdentity, CHAT_IDENTITY);
+  // v1 两段式候选一律回退成 kind='arrival' 的事件池条目（v2 直接给 eventPool 时读原字段）
+  assert.equal(normalized.eventPool[0].kind, 'arrival');
+  assert.equal(normalized.eventPool[0].id, 'in_10');
   assert.deepEqual(normalized.knownFacts.阿青, ['知道：账本缺了一页（亲历）', '不知道：主角已收到密信']);
   assert.equal(normalized.ownsBlindSpotPrompt, true);
   assert.equal(normalized.candidates[0].id, 'in_10', '主入口排第一');
@@ -254,7 +273,7 @@ test('跨仓：候选过期即出池，台账侧不产生候选段（保留单�
   }, {
     requestTask: async spec => {
       const text = spec.items.map(i => i.content || '').join('\n');
-      assert.doesNotMatch(text, /<statusbar_candidate>/);
+      assert.doesNotMatch(text, /<statusbar_events>/);
       assert.match(text, /<statusbar_cognition>/);
       return '<recall></recall>';
     },
@@ -276,9 +295,11 @@ test('跨仓：状态栏真实快照进内置魔改规划（认知 + 唯一主�
   assert.match(seen, /<statusbar_cognition>/);
   assert.match(seen, /阿青：知道：账本缺了一页（亲历）；不知道：主角已收到密信/);
   assert.match(seen, /状态栏已承担本轮主要盲点提示/);
-  assert.match(seen, /<statusbar_candidate>/);
-  assert.match(seen, /事件：码头对账/);
-  assert.match(seen, /入口：阿青抱着旧账本走进院子/);
+  assert.match(seen, /<statusbar_events>/);
+  assert.match(seen, /\[in_10\] arrival \| 码头对账 \| 阿青抱着旧账本走进院子/);
+  assert.match(seen, /宁缺毋滥、严禁全推/);
+  assert.match(seen, /每轮至多挑选 1 条主事件/);
+  assert.match(seen, /<world_ack>/);
   assert.doesNotMatch(seen, /绝密完整描述|秘密替父亲翻案|已收集三份证据/);
 });
 
@@ -305,4 +326,154 @@ test('跨仓：聊天身份不一致 / 状态栏不可用时两侧都退回单�
   }).getSnapshot();
   assert.equal(unavailable.available, false);
   assert.equal(ledgerRead(unavailable), null);
+});
+
+test('跨仓 v2：状态栏事件池 → 台账推进挑选与 sl_world_ack → 状态栏确认/冷却与删楼回退闭环', async () => {
+  const state = {
+    ...baseState([
+      rawIntrusion(),
+      rawIntrusion({
+        id: 'in_11',
+        refId: '路人甲',
+        title: '茶馆口信',
+        hook: '路人甲在柜台前轻敲两下竹板',
+        desc: '绝密：其实他是来试探账房虚实的。',
+        region: '城外',
+      }),
+    ]),
+    rumors: [
+      {
+        id: 'rumor_1',
+        topic: '码头罢工风声',
+        content: '码头脚夫今早聚集讨说法',
+        level: 'heard',
+        progress: 40,
+        dissipation: 90,
+        createdAt: TODAY,
+        region: '星海商圈',
+      },
+    ],
+    seeds: [
+      {
+        id: 'seed_1',
+        title: '暗账风波',
+        status: 'active',
+        level: 2,
+        visibility: 'public',
+        catalyst: '有人在码头翻找旧货单',
+        region: '星海商圈',
+        actorIds: ['阿青'],
+        expiresAtDay: '2026-06-10',
+        missedOutcome: '绝密错过后果',
+        createdAtDay: TODAY,
+        revision: 1,
+      },
+    ],
+    guidance: {
+      signals: [
+        { voice: 'ambient', sourceId: 'clock', text: '午后阴云压低，街市行人脚步匆匆' },
+      ],
+    },
+  };
+
+  let currentRound = 10;
+  const bridge = sbSnapshot.createWorldCognitionBridge({
+    getChatKey: () => CHAT_KEY,
+    getChatIdentity: () => CHAT_IDENTITY,
+    isStorageReady: () => true,
+    isWorldEnabled: () => true,
+    loadState: () => state,
+    getDateKey: () => TODAY,
+    getRuntimeContext: () => ({ dateKey: TODAY, playerRegion: '星海商圈', onStageNames: [], nsfwActive: false }),
+    getCurrentRound: () => currentRound,
+    isWorldbookDelegated: () => true,
+  });
+
+  const snap = bridge.getSnapshot();
+  assert.equal(snap.version, 2);
+  assert.equal(snap.worldbookDelegated, true);
+  assert.ok(snap.eventPool.some(e => e.kind === 'arrival' && e.id === 'in_10'));
+  assert.ok(snap.eventPool.some(e => e.kind === 'encounter' && e.id === 'seed_1'));
+  assert.ok(snap.eventPool.some(e => e.kind === 'rumor' && e.id === 'rumor_1'));
+  assert.ok(snap.eventPool.some(e => e.kind === 'ambient'));
+  assert.ok(!JSON.stringify(snap).includes('绝密错过后果'));
+
+  const normalized = ledgerRead(snap);
+  assert.ok(normalized);
+  assert.equal(normalized.worldbookDelegated, true);
+  assert.equal(normalized.eventPool.length, snap.eventPool.length);
+
+  // 台账推进请求：suspendWorldDigest 为 true；输出 <world_cue> + <world_ack>
+  const preset = director.builtinDriverPreset('魔改召回');
+  let capturedSpec = null;
+  const planRes = await director.runPlanningRequest(preset, {
+    userInput: '去码头转转', lastPlot: '', lastPlotRaw: '', chronicleOverview: '', recentStory: '',
+    statusbarSnapshot: normalized,
+  }, {
+    requestTask: async spec => {
+      capturedSpec = spec;
+      return '<recall></recall><world_cue>街头传来码头脚夫聚众讨说法的议论。</world_cue><world_ack>pick: rumor_1 | world_cue | 主角正要去码头\nskip: in_10 | 先留白不让阿青直接露面</world_ack>';
+    },
+  });
+  assert.equal(capturedSpec.suspendWorldDigest, true);
+  const validIds = new Set(normalized.eventPool.map(e => e.id));
+  const ack = director.extractWorldAck(planRes.raw, validIds, CHAT_IDENTITY);
+  assert.ok(ack);
+  assert.equal(ack.picked.id, 'rumor_1');
+  assert.deepEqual(ack.skippedIds, ['in_10']);
+
+  // 最终指令包含 world_cue 但不包含 world_ack
+  const directive = director.assembleFinalDirective({ preset, userInput: '去码头转转', raw: planRes.raw });
+  assert.match(directive, /<world_cue>街头传来码头脚夫聚众讨说法的议论。<\/world_cue>/);
+  assert.doesNotMatch(directive, /world_ack|skip:|pick:/);
+
+  // 状态栏消费回执：rumor_1 进 4 轮冷却，in_10 进 2 轮降权（不删事件）
+  const aiMsg = { is_user: false, mes: '你刚走到码头边，就听见几个脚夫在议论工钱。', swipe_id: 0, id: 'msg_10' };
+  const anchor = sbAnchor.selectedMessageAnchor(aiMsg, 1);
+  const cooledState = sbIntrusion.applyWorldAckReceipt(state, ack, {
+    chatKey: CHAT_KEY,
+    round: currentRound,
+    floor: 1,
+    anchor,
+    swipeId: 0,
+    liveChatIdentity: CHAT_IDENTITY,
+  });
+  assert.equal(cooledState.eventCooldowns.rumor_1.untilRound, 14);
+  assert.equal(cooledState.eventCooldowns.in_10.untilRound, 12);
+
+  // 下一轮事件池自动跳过冷却中的 rumor_1，而 in_10 仅降权仍在队列中
+  currentRound = 11;
+  const nextPool = sbSnapshot.createWorldCognitionBridge({
+    getChatKey: () => CHAT_KEY,
+    getChatIdentity: () => CHAT_IDENTITY,
+    isStorageReady: () => true,
+    isWorldEnabled: () => true,
+    loadState: () => cooledState,
+    getDateKey: () => TODAY,
+    getRuntimeContext: () => ({ dateKey: TODAY, playerRegion: '星海商圈', onStageNames: [], nsfwActive: false }),
+    getCurrentRound: () => currentRound,
+    isWorldbookDelegated: () => true,
+  }).getSnapshot().eventPool;
+  assert.equal(nextPool.some(e => e.id === 'rumor_1'), false, '刚推过的传闻在冷却期内不再重复入池');
+  assert.equal(nextPool.some(e => e.id === 'in_10'), true, '被跳过的入镜仍在池内不被删');
+
+  // Swipe 切走后冷却回退，rumor_1 重新入池
+  const rolledBack = sbIntrusion.reconcileIntrusionsWithChat(cooledState, [
+    { is_user: true, mes: '去码头转转', id: 'msg_9' },
+    { ...aiMsg, swipe_id: 1 },
+  ], CHAT_KEY);
+  assert.equal(rolledBack.state.eventCooldowns, undefined);
+
+  // 双开收敛下世界书只留 acted 余波+极短暗流，但状态栏 UI（frontSectionsFromState）仍完整显示
+  const delegatedWb = sbWorldbook.buildWorldDigestContent(
+    '【世界动态 2026-06-05】\n〔此地此刻〕\n- 此地此刻不应直出\n〔风闻轶事〕\n【传闻·码头罢工风声】不该全推\n〔世界暗流〕\n- 商路暗潮（正在发生）',
+    sbIntrusion.selectIntrusionCandidates(state, { dateKey: TODAY, playerRegion: '星海商圈', onStageNames: [] }),
+    { delegatedToDriver: true, actedEchoes: ['老周·送茶：把茶放到桌上顺便说了码头停工的消息'] },
+  );
+  assert.match(delegatedWb, /〔近期入镜余波〕/);
+  assert.match(delegatedWb, /〔世界暗流〕/);
+  assert.doesNotMatch(delegatedWb, /此地此刻不应直出|不该全推|自然入镜/);
+  const uiFront = sbWorldWindow.frontSectionsFromState(state, TODAY, '星海商圈');
+  assert.equal(uiFront.arrivals.length, 2, '状态栏 UI 必须完整保留待定入镜');
+  assert.equal(uiFront.rumors.length, 1, '状态栏 UI 必须完整保留台前传闻');
 });

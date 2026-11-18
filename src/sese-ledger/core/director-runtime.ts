@@ -23,10 +23,13 @@ import {
   runPlanningRequest,
   shouldProcessPlot,
   shouldSkipIntercept,
+  extractWorldAck,
   SL_PLOT_FIELD,
   SL_PLOT_TASKS_FIELD,
+  SL_WORLD_ACK_FIELD,
   type DriverPreset,
   type DirectorTaskRequest,
+  type WorldAck,
 } from './director';
 import { stripWithContextMessages } from '../../unified-statusbar/core/context-strip';
 import type { LedgerLogEvent } from './ledger-log';
@@ -83,7 +86,7 @@ export function readUserInputFromMessage(message: unknown): string {
 /** 规划结果：与数据库项目同口径区分「成功 / 用户中止 / 失败 / 不接管」。
  *  failed 与 aborted 都不得把用户原文当普通楼层发出去（策略1删楼回填、策略2取消本次发送）。 */
 type PlanOutcome =
-  | { status: 'planned'; finalDirective: string; outputs: Record<string, string> }
+  | { status: 'planned'; finalDirective: string; outputs: Record<string, string>; worldAck?: WorldAck | null }
   | { status: 'aborted' }
   | { status: 'failed'; reason?: string }
   | { status: 'skipped' };
@@ -113,8 +116,8 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
   let abortController: AbortController | null = null;
   let unbinders: (() => void)[] = [];
   let warnedInvalidPreset = false;
-  /** 策略2规划出的本轮指令（等待 MESSAGE_SENT 落到用户楼后补自产标记）。 */
-  let pendingSend: { text: string; outputs: Record<string, string>; target: PlanningTarget } | null = null;
+  /** 策略2 / 入口① 规划出的本轮指令（等待 MESSAGE_SENT 落到用户楼后补自产标记与回执）。 */
+  let pendingSend: { text: string; outputs: Record<string, string>; worldAck?: WorldAck | null; target: PlanningTarget } | null = null;
   function currentChatIdentity(): string | null {
     try {
       const value = deps.getChatIdentity?.();
@@ -248,13 +251,22 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
     if (sameChat(target)) deps.setInputBox(originalText);
   }
 
-  /** 自产用户楼的统一标记：两个落点（策略1的已落楼 / 策略2的待落楼）共用，防口径漂移。 */
-  function processedPatch(directive: string, outputs: Record<string, string>): Record<string, unknown> {
+  /** 自产用户楼的统一标记：三个落点（策略1已落楼 / 策略2待落楼 / 入口①待落楼）共用，防口径漂移。
+   *  worldAck 非空时一并写隐藏回执（sl_world_ack）；空/缺省不写字段。 */
+  function processedPatch(directive: string, outputs: Record<string, string>, worldAck?: WorldAck | null): Record<string, unknown> {
     return {
       [SL_PLOT_FIELD]: directive,
       [SL_PLOT_TASKS_FIELD]: outputs,
+      ...(worldAck ? { [SL_WORLD_ACK_FIELD]: worldAck } : {}),
       _sl_processed: true,
     };
+  }
+
+  /** 回执 id 白名单：只认本轮事件池（v1 回退时同样先转成事件池）；池空＝不白名单（不误杀）。 */
+  function worldAckValidIds(snapshot: { eventPool?: { id: string }[] } | null | undefined): ReadonlySet<string> | undefined {
+    const pool = snapshot?.eventPool || [];
+    if (pool.length === 0) return undefined;
+    return new Set(pool.map((event) => event.id));
   }
 
   function resolvePreset(): DriverPreset | null {
@@ -369,8 +381,10 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
       const finalDirective = assembleFinalDirective({ preset, userInput, raw });
       // 组装不出变化＝不接管（与数据库项目 no_match/passthrough 同口径）
       if (!finalDirective.trim() || finalDirective.trim() === userInput.trim()) return { status: 'skipped' };
+      // 隐藏回执：AI 原始输出末尾的 <world_ack>（幻觉 id 按本轮事件池过滤，不进正文）
+      const worldAck = extractWorldAck(raw, worldAckValidIds(ctx.statusbarSnapshot), target.chatIdentity);
       // 原始输出落 sl_plot_tasks（键＝预设名），供回读诊断
-      return { status: 'planned', finalDirective, outputs: raw ? { [preset.name]: raw } : {} };
+      return { status: 'planned', finalDirective, outputs: raw ? { [preset.name]: raw } : {}, worldAck };
     } finally {
       deps.clearProgress();
       abortController = null;
@@ -392,7 +406,7 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
     }
     const patch: Record<string, unknown> = {
       mes: planned.finalDirective,
-      ...processedPatch(planned.finalDirective, planned.outputs),
+      ...processedPatch(planned.finalDirective, planned.outputs, planned.worldAck),
     };
     const ok = await deps.updateUserMessage(located.index, patch);
     if (!ok) {
@@ -430,8 +444,12 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
             let finalMessage: string | null = null;
             try {
               const target = capturePlanningTarget(null, userMessage);
-            const planned = await plan(userMessage, null, target);
+              const planned = await plan(userMessage, null, target);
               finalMessage = planned.status === 'planned' ? planned.finalDirective : null;
+              // 入口①不落台账用户楼：本轮指令由宿主直接发出，MESSAGE_SENT 时经 pendingSend 补自产标记与回执。
+              if (planned.status === 'planned' && finalMessage && sameChat(target)) {
+                pendingSend = { text: finalMessage, outputs: planned.outputs, worldAck: planned.worldAck, target };
+              }
             } finally {
               processing = false;
             }
@@ -516,7 +534,7 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
               params.prompt = outcome.finalDirective;
               // 等宿主把这条指令落到用户楼后补自产标记（MESSAGE_SENT）：
               // 否则删楼后露出的旧楼没有 _sl_processed/sl_plot，会被策略1当成新一轮再推一次。
-              pendingSend = { text: outcome.finalDirective, outputs: outcome.outputs, target };
+              pendingSend = { text: outcome.finalDirective, outputs: outcome.outputs, worldAck: outcome.worldAck, target };
             } else if (outcome.status === 'aborted' || outcome.status === 'failed') {
               // 中止/失败＝取消本次发送（同数据库项目策略2）：宿主读到空输入框就不落用户楼，随后回填原文
               cancelPendingSendKeepTextarea(boxText);
@@ -555,7 +573,7 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
       pendingSend = null;
       if (!valid) return;
       // 宿主可能按 trim_spaces 修剪过文本；只有确认是本轮指令才补标记。
-      Object.assign(msg, processedPatch(pending.text, pending.outputs));
+      Object.assign(msg, processedPatch(pending.text, pending.outputs, pending.worldAck));
     };
     es.on(eventType, handler);
     unbinders.push(() => { try { (es as any).off?.(eventType, handler); } catch (_e) { /* 无 off 则随页面生命周期 */ } });

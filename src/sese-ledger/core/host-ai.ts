@@ -12,7 +12,7 @@ import { getJailbreakHeadPrompts, getJailbreakTailPrompts } from '../../unified-
 import { withNativeScanWorldbook } from '../../unified-statusbar/core/worldbook-entry';
 import { stripTailSafeBlock } from '../../unified-statusbar/core/ai-parse';
 import { getTavernHelper, makeGenerationId, stopGenerationById } from '../../unified-statusbar/core/env';
-import { isDatabaseEntry, isManagedEntry } from './lens';
+import { entryNameOf, isDatabaseEntry, isManagedEntry } from './lens';
 import {
   expandLedgerItems,
   LEDGER_FILL_NATIVE_SLOTS,
@@ -35,6 +35,9 @@ export interface LedgerAiSpec {
   /** 扫描钩：命中台账受管投影或数据库系条目即剔除（填表=true——两族都不进填表提示词；推进=false，推进要用数据库条目）。
    *  数据库系含无前缀例外族（模板整表导出裸名 / 总结·重要人物裸名词根，见 lens.isDatabaseEntryName）。 */
   suspendLedgerFamily?: boolean;
+  /** 状态栏已自行投影「世界演化-世界动态」（worldbookDelegated）时传 true：扫描钩一并暂停该条目，
+   *  避免 scan 块与尾部 <statusbar_events> 重复喂料；角色动态族（绿灯，按角色名）照常保留。 */
+  suspendWorldDigest?: boolean;
   /** 逃生口：需要宿主工具调用时传 true（默认全受保）。 */
   allowHostTools?: boolean;
   /** API 来源用途：填表（含建表向导/时光机重填）或剧情推进。缺省 fill。 */
@@ -57,6 +60,22 @@ export interface LedgerAiTransport {
 }
 
 const SCAN_INJECTION_ID = 'sl_scan_material';
+/** 状态栏「世界动态」投影条目名（与本仓共享件 world-engine/world-worldbook.WORLD_WB_NAME 同值）。 */
+const WORLD_DIGEST_ENTRY_NAME = 'UBS-世界演化-世界动态';
+
+/** 扫描钩选项：两族暂停条件可叠加；都不需要暂停时返回空对象（不改变原生扫描行为）。 */
+function buildScanSuspendOptions(spec: LedgerAiSpec, getBareNames?: () => ReadonlySet<string> | null): { suspend?: (entry: any) => boolean } {
+  const suspendLedgerFamily = spec.suspendLedgerFamily === true;
+  const suspendWorldDigest = spec.suspendWorldDigest === true;
+  if (!suspendLedgerFamily && !suspendWorldDigest) return {};
+  return {
+    suspend: (entry: any) => {
+      if (suspendWorldDigest && entryNameOf(entry) === WORLD_DIGEST_ENTRY_NAME) return true;
+      if (!suspendLedgerFamily) return false;
+      return isManagedEntry(entry) || isDatabaseEntry(entry, getBareNames?.() ?? null);
+    },
+  };
+}
 
 export function createLedgerAiTransport(deps: LedgerAiTransportDeps): LedgerAiTransport {
   let seq = 0;
@@ -99,9 +118,7 @@ export function createLedgerAiTransport(deps: LedgerAiTransportDeps): LedgerAiTr
           ...(spec.allowHostTools === true ? { allow_host_tools: true } : {}),
         };
         const raw = await withNativeScanWorldbook(
-          spec.suspendLedgerFamily === true
-            ? { suspend: (entry: any) => isManagedEntry(entry) || isDatabaseEntry(entry, deps.getDatabaseBareNames?.() ?? null) }
-            : {},
+          buildScanSuspendOptions(spec, deps.getDatabaseBareNames),
           () => th.generateRaw(request),
         );
         return stripTailSafeBlock(String(raw ?? ''));
