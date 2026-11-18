@@ -48,7 +48,7 @@
     "src/sese-ledger/core/time-machine.ts": "d4c67df7e9e1506fb0c543a60cad98631853a548d7f75a3abf50459e7a9145b6",
     "src/sese-ledger/index.ts": "74375a6bc1f68233c1d4c72103d3bebcaf2ab17d2f1296634842a51e948ec7d4",
     "src/sese-ledger/settings/panel/data-tab.ts": "616f03bd71e6076a7093d2d8f44a4591e691e84cb48eadc7f3caee1c4f3bc2a3",
-    "src/sese-ledger/settings/panel/fill-tab.ts": "c3a6e5aa97906dc6fc249ef47a996624639834f3329087f295fcbc51104a904b",
+    "src/sese-ledger/settings/panel/fill-tab.ts": "6f4e640f35603625d87dff824792ae28da3a80efc4f5e9a3fb1105248c537eeb",
     "src/sese-ledger/settings/panel/health-tab.ts": "6fa0e8072ec762284e289df37bb95497588662b18a843899c56e307b6c9a62e0",
     "src/sese-ledger/settings/panel/log-tab.ts": "3029502edd5065a6ebc84ad7f89ef22b54dfc01be71dc7dcad0446644175564c",
     "src/sese-ledger/settings/panel/merge-tab.ts": "2fd31dc051c28679214fac62446a73bf85f45011321a47c2b6d4f3eec94c157e",
@@ -72,8 +72,8 @@
     "src/unified-statusbar/core/character-worldbook-config.ts": "eb66634b10ffacd32d6e9e9ca6e06b36cbff6dba414de01d0570614177683529",
     "src/unified-statusbar/core/chat-storage-identity.ts": "6e8474b9b754cd32d1e8e18deaa3186478da66733b516fabd8cc4d6d7328019a",
     "src/unified-statusbar/core/chatu8-bridge.ts": "1128d3eb459cf8f0e936ee28e380e144f267fd7a6593e8e8bc3bdb07bfea9ba7",
-    "src/unified-statusbar/core/config-store.ts": "3584b6c91265b38ca6c74a70a4357396b3ce06d0bc2b9dd361fd912bfaf6b108",
-    "src/unified-statusbar/core/constants.ts": "295c1af3b3425127e7d01c9c45cb3616268bf43c02f6edaa51531cd627ef6d21",
+    "src/unified-statusbar/core/config-store.ts": "eaf4fcab141c5a81fe0e11710c2a04e7e7a4882011cd3921ab41d1914c5e714d",
+    "src/unified-statusbar/core/constants.ts": "2b406226c72e7b8be1b3f51231c2301d779e0353fcfcb1c9b7c4171dd848eaf4",
     "src/unified-statusbar/core/context-strip.ts": "c36db119eda68ecde2014b4b8d8b2fa0dca67af8a4cb7458700bd33317ccbcd6",
     "src/unified-statusbar/core/cross-window.ts": "3d7c56f4c425bafaf49ac0ffc8fb46e25745236a8e32ce7d4a48eff3ba17ec7f",
     "src/unified-statusbar/core/db-ddl-check-parser.ts": "7b02942496bf129ff21b4207fa8c0ca5fbc83811356a82ea08852c53db7de3ce",
@@ -100,7 +100,7 @@
     "src/unified-statusbar/core/story-image-config.ts": "3390e39b2ed4a476f3797227454400fe12564b496b53de9875d95421ec703426",
     "src/unified-statusbar/core/type-guards.ts": "7cfd3053f31ab3c460b73fd1cacb134dac0256a6b75c61cf550d4179cffdfe9a",
     "src/unified-statusbar/core/ui-font-scale.ts": "1606ff784c3c20e32a9f04d38c3cec79ec628e62241410b90a043b0d2f7fb8f0",
-    "src/unified-statusbar/core/worldbook-entry.ts": "3cb2ab7d629525d2f5aff860f04670bd2b6997862a9be840d66a87434765e18d",
+    "src/unified-statusbar/core/worldbook-entry.ts": "38ab40d02bfd5c771a2c708ec0a48db7f3f5e1f05c523082f033756e937d3a30",
     "src/unified-statusbar/core/worldbook-projection.ts": "5c0e8af2be173f04c139e18d5d7faa76b47ea5fcb026d97e064b44aea073029c",
     "src/unified-statusbar/docs/色色灵感数据库模板V3.3.4.json": "1839041fe6b9ae6fbd14cc8f0a360669100b39aa1a09e00deed98dec3102e92a"
   }
