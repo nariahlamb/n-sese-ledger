@@ -11,7 +11,7 @@
 ## 1. 定位与运行依赖
 
 - **扩展名称**：`瑟瑟台账`（`manifest.json` `loading_order: 210`，在 `n-sese-unified-statusbar` `200` 之后、`n-sese-phone` `220` 之前装载）
-- **当前版本**：`0.1.0-alpha.10`（基于 `2f3a727` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
+- **当前版本**：`0.1.0-alpha.11`（基于 `2f3a727` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
 - **宿主设置键**：`extensionSettings.sese_ledger_v1`（详见 [core/settings-store.ts](src/sese-ledger/core/settings-store.ts)）
 - **协同关系**：
   - 安装 `n-sese-unified-statusbar` 时，台账从状态栏设置面板打开工作台，并通过 `__ubWorldbookProjection` 共享同一主世界书写入队列、通过 `__ubWorldCognitionSnapshot` 读取世界认知快照（单开时自动安全降级）。
@@ -35,7 +35,7 @@
 | **工作台 UI 与模板持久化** | ✅ 代码+单测完成 | 奶油手账日间默认主题（支持深浅切换）；表格数据页重构为电脑端滑动网格布局并下线字段健康页签；跨卡记住并沿用当前模板（[settings/panel/](src/sese-ledger/settings/panel/shell.ts)） |
 | **进度 Toast 防误触与单开兜底** | ✅ 代码+单测完成 | `fill-notify.ts` 为进度 toast 补充 `sl-progress-toast` 单开/原版兜底半透明紧凑样式与 `30×30` 大 `×` 热区，捕获阶段拦截关闭钮旁 8px 缓冲带误触并转为关闭到后台（[fill-notify.ts](src/sese-ledger/core/fill-notify.ts) `v0.1.0-alpha.5`） |
 | **魔改推进与状态栏后台演化 v2 联动** | ✅ 代码+单测完成 | [statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) 升级消费 v2 `eventPool`（兼容 v1）并产出 `<statusbar_events>`（宁缺毋滥/限量/防撞车/`<world_ack>` 回执）；[director.ts](src/sese-ledger/core/director.ts) 解除预设名硬编码（`statusbarBridge` + `{{world_cue}}` 识别）并解析 `sl_world_ack`；[host-ai.ts](src/sese-ledger/core/host-ai.ts) 委派时暂停 `UBS-世界演化-世界动态` 防重喂；[director-runtime.ts](src/sese-ledger/core/director-runtime.ts) 三入口落楼写回 `sl_world_ack`；[plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json)/[plot-tab.ts](src/sese-ledger/settings/panel/plot-tab.ts)/[plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts)/[index.ts](src/sese-ledger/index.ts) 补齐 `<world_cue>` 展示、极简桥开关与 `isDriverWorldBridgeActive`（`v0.1.0-alpha.10`） |
-| **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **95 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表、世界书净化与魔改推进按需挑选事件闭环待真机验证 |
+| **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **97 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表、世界书净化与魔改推进按需挑选事件闭环待真机验证 |
 
 ---
 
@@ -117,7 +117,7 @@
 
 ```powershell
 npm run build   # esbuild 打包 dist/index.js
-npm test        # node --test tests/*.test.mjs（当前 95 通过 / 3 跳过 / 0 失败）
+npm test        # node --test tests/*.test.mjs（当前 97 通过 / 3 跳过 / 0 失败）
 npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 完整性校验
 ```
 
@@ -129,6 +129,7 @@ npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 �
 
 | 日期 | 版本 / Commit | 改动范围与摘要 | 验证状态 |
 |---|---|---|---|
+| 2026-11-19 | `0.1.0-alpha.11` | 同步状态栏 `ai-request-pipeline.ts`（`buildStandardPromptMiddle` 内联直传）；升级并美化 [plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts) 剧情推进面板（日间奶油手账网格纸/樱粉 + 夜间 TokyoNight Storm、支持 `NSFW` 标记/`<match>` 召回依据/`<world_cue>` 后台切入/`sl_world_ack` 选中与压住提示）；新增 [tests/plot-regex-panel.test.mjs](tests/plot-regex-panel.test.mjs) | `build` / `test` 97 通过 3 跳过 / `check` 全绿；待真机验收 |
 | 2026-11-19 | `0.1.0-alpha.10` | 魔改推进深度适配状态栏后台演化 v2 事件池：`statusbar-cognition.ts` 消费 v2 `eventPool`（兼容 v1）并注入 `<statusbar_events>`；`director.ts`/`plot-preset-magic-recall.json` 新增 `statusbarBridge` 能力判据、独立出口 `<world_cue>`（空白不留空行）与隐藏回执 `extractWorldAck`；`host-ai.ts` 在 `worldbookDelegated` 时暂停 `UBS-世界演化-世界动态` 防重喂；`director-runtime.ts` 三入口落楼写入 `sl_world_ack`；`index.ts` 暴露 `isDriverWorldBridgeActive` 与变更自动同步；`plot-tab.ts` 新增极简勾选框、`plot-regex-template.ts` 渲染「后台切入」卡片；扩展 `director-p4.test.mjs` / `director-runtime.test.mjs` / `statusbar-bridge-contract.test.mjs` 含 v2 跨仓闭环测试 | `build` / `test` 95 通过 3 跳过 / `check` 全绿；待真机验收 |
 | 2026-11-18 | `0.1.0-alpha.9` | 同步状态栏共享件注释与精简 `fill-tab.ts` `scan` 说明文案，移除无关第三方引用词 | `build` / `test` 79 通过 3 跳过 / `check` 全绿；已推仓 |
 | 2026-11-18 | `0.1.0-alpha.8` | 同步状态栏后台 AI 请求净化与外挂世界书隔离共享件（默认只放行 `primary` 主世界书、屏蔽 `globalLore`/`additional`/`chatLore`、剔除 `role:assistant`、启用内置正文向核心词根过滤并出站剥离第三方扩展注入）；`ai-request.ts`/`host-ai.ts` 为填表拆分 `LEDGER_FILL_NATIVE_SLOTS`（保留净设定、剔除 `dialogue_examples` 与 `chat_history`）；`scribe.ts` `scan` 抬头新增「忽略正文文风/状态栏/思维链要求」声明；更新 `fill-tab.ts` 说明；新增 `tests/bg-isolation.test.mjs` | `build` / `test` 79 通过 3 跳过 / `check` 全绿；已推仓待 TT 拉取真机验收 |

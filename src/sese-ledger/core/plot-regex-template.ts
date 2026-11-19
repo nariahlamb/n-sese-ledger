@@ -1,8 +1,7 @@
 // ===== 剧情推进正则：面板模板 + 三条正则脚本定义（两条显示、一条提示词） =====
 //
-// 单一事实源：本文件的面板 HTML/CSS/JS（历史对照 mockup 曾逐字核验，已清理）；
-// mockup 的预览外壳不在此文件。
-// 正则替换串里用 $1 = <本轮用户输入> 内文、$2 = 其后全部（recall/soul/chaos/spot 标签）。
+// 单一事实源：本文件的面板 HTML/CSS/JS（日间奶油手账 + 夜间 TokyoNight Storm）。
+// 正则替换串里用 $1 = <本轮用户输入> 内文、$2 = 其后全部（recall/soul/chaos/world_cue/spot 标签）。
 // 面板只读：纪要走 SeseLedgerAPI.query；重置走 SeseLedgerAPI.driver.resetRound；
 // 人物/地点分别走状态栏 __ub_showCharacterHub / __ub_showMapForLocation。
 // 性能：不轮询、不常驻监听；纪要点击才查、按面板会话缓存；主题只在加载时读一次宿主正文色。
@@ -33,7 +32,7 @@ export const PLOT_PROMPT_STRIP_SCRIPT_NAME = PLOT_REGEX_PREFIX + '剧情推进·
 const PANEL_FIND = '/^[\\s\\S]*?<本轮用户输入>([\\s\\S]*?)<\\/本轮用户输入>([\\s\\S]*)$/';
 /** 历史：更早的台账用户楼整条替换为空（display only；不删提示词历史）。 */
 const HIDE_FIND = '/^[\\s\\S]*<本轮用户输入>[\\s\\S]*<\\/本轮用户输入>[\\s\\S]*$/';
-/** 提示词：更早的台账用户楼只保留 <本轮用户输入> 内文，去掉召回/soul/chaos/spot 等当轮指令。
+/** 提示词：更早的台账用户楼只保留 <本轮用户输入> 内文，去掉召回/soul/chaos/world_cue/spot 等当轮指令。
  *  宿主提示词深度：末楼=0（续写时末楼=-1、其前用户楼=0；swipe 先弹出待重写楼），故 minDepth 1
  *  恒保留本轮用户楼。世界书扫描读的也是正则后的历史，旧楼 <recall> 不再重复触发纪要条目。 */
 const PROMPT_STRIP_FIND = '/^[\\s\\S]*?<本轮用户输入>\\n?([\\s\\S]*?)\\n?<\\/本轮用户输入>[\\s\\S]*$/';
@@ -47,187 +46,266 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: transparent; }
 
+  /* 夜间默认：TokyoNight Storm */
   .slp {
-    --slp-fg: #ded9cf;
-    --slp-line: rgba(222,217,207,.18);
-    --slp-soft: rgba(222,217,207,.07);
-    --slp-bg: rgba(24,26,31,.96);
-    --slp-border: rgba(222,217,207,.22);
+    --slp-bg: rgba(36, 40, 59, .97);
+    --slp-surface: rgba(31, 35, 53, .92);
+    --slp-soft: rgba(41, 46, 66, .88);
+    --slp-fg: #c0caf5;
+    --slp-fg-soft: #a9b1d6;
+    --slp-muted: #787c99;
+    --slp-line: rgba(86, 95, 137, .40);
+    --slp-border: rgba(122, 162, 247, .28);
+    --slp-accent: #7aa2f7;
+    --slp-accent-soft: rgba(122, 162, 247, .14);
+    --slp-cue: #bb9af7;
+    --slp-cue-soft: rgba(187, 154, 247, .14);
+    --slp-warn: #e0af68;
+    --slp-danger: #f7768e;
+    --slp-danger-soft: rgba(247, 118, 142, .14);
+    --slp-ok: #9ece6a;
+    --slp-shadow: 0 8px 26px rgba(15, 18, 30, .42);
     width: 100%; max-width: 740px; margin: 0 auto;
     color: var(--slp-fg);
     font-family: inherit;
     font-size: 14px;
     line-height: 1.8;
     border: 1px solid var(--slp-border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--slp-bg);
-    padding: 14px 18px 14px;
+    box-shadow: var(--slp-shadow);
+    padding: 14px 18px 15px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+
+  /* 日间：奶油手账（对齐台账工作台 .slw-theme-light） */
   .slp.light {
-    --slp-fg: #3a3630;
-    --slp-line: rgba(58,54,48,.20);
-    --slp-soft: rgba(58,54,48,.075);
-    --slp-bg: rgba(251,248,241,.97);
-    --slp-border: rgba(58,54,48,.18);
+    --slp-bg: #f7f1e6;
+    --slp-surface: #fffaf1;
+    --slp-soft: #f3ead9;
+    --slp-fg: #4a3f36;
+    --slp-fg-soft: #6a5a4c;
+    --slp-muted: #8a7a6a;
+    --slp-line: #e2d5c0;
+    --slp-border: #d9c8ad;
+    --slp-accent: #b9586c;
+    --slp-accent-soft: rgba(232, 165, 176, .22);
+    --slp-cue: #4b7ba8;
+    --slp-cue-soft: rgba(75, 123, 168, .12);
+    --slp-warn: #8f6a1f;
+    --slp-danger: #c0565a;
+    --slp-danger-soft: rgba(192, 86, 90, .12);
+    --slp-ok: #5f8f5a;
+    --slp-shadow: 0 6px 20px rgba(120, 90, 60, .14);
+    background-color: var(--slp-bg);
+    background-image:
+      linear-gradient(rgba(180, 150, 110, .07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(180, 150, 110, .07) 1px, transparent 1px);
+    background-size: 18px 18px;
+    border-width: 1.5px;
   }
 
   .slp-head { padding: 1px 1px 13px; border-bottom: 1px solid var(--slp-line); }
-  .slp-head-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 7px; }
+  .slp.light .slp-head { border-bottom-style: dashed; border-bottom-width: 1.5px; }
+  .slp-head-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
   .slp-kicker {
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9.5px; letter-spacing: 2px; line-height: 1;
-    opacity: .38;
+    font-size: 10px; letter-spacing: 1.8px; line-height: 1;
+    color: var(--slp-muted);
   }
-  .slp-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
-  .slp-tool {
-    appearance: none; border: 0; background: transparent; color: inherit;
+  .slp-pill {
+    display: inline-flex; align-items: center; gap: 4px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9.5px; letter-spacing: .8px; line-height: 1;
-    padding: 3px 2px; cursor: pointer; opacity: .38;
-    display: inline-flex; align-items: center; gap: 5px;
-    transition: opacity .14s ease;
+    font-size: 9px; letter-spacing: .8px; line-height: 1.4;
+    padding: 1px 6px; border-radius: 999px;
+    border: 1px solid var(--slp-line);
+    background: var(--slp-soft);
+    color: var(--slp-fg-soft);
   }
-  .slp-tool:hover { opacity: .85; }
-  .slp-tool:disabled { opacity: .22; cursor: default; }
-  .slp-tool.armed { opacity: .95; }
-  .slp-tool-sep { font-size: 9px; opacity: .18; padding: 0 1px; }
+  .slp-pill.nsfw {
+    border-color: var(--slp-danger);
+    background: var(--slp-danger-soft);
+    color: var(--slp-danger);
+    font-weight: 600;
+  }
+  .slp-pill.cue {
+    border-color: var(--slp-cue);
+    background: var(--slp-cue-soft);
+    color: var(--slp-cue);
+  }
+  .slp-pill.ok {
+    border-color: var(--slp-ok);
+    color: var(--slp-ok);
+  }
+  .slp-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
+  .slp-tool {
+    appearance: none; border: 1px solid transparent; background: transparent; color: var(--slp-muted);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 10px; letter-spacing: .5px; line-height: 1;
+    padding: 4px 7px; border-radius: 999px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: color .14s ease, border-color .14s ease, background .14s ease;
+  }
+  .slp-tool:hover { color: var(--slp-accent); border-color: var(--slp-line); background: var(--slp-soft); }
+  .slp-tool:disabled { opacity: .35; cursor: default; }
+  .slp-tool.armed { color: var(--slp-danger); border-color: var(--slp-danger); background: var(--slp-danger-soft); }
+  .slp-tool-sep { font-size: 9px; color: var(--slp-line); padding: 0; }
   .slp-input {
     white-space: pre-wrap; word-break: break-word;
-    font-size: 14.5px; line-height: 1.9; letter-spacing: .2px;
-    padding-left: 11px;
-    border-left: 2px solid var(--slp-line);
+    font-size: 14.5px; line-height: 1.88; letter-spacing: .2px;
+    padding: 4px 0 4px 12px;
+    border-left: 2.5px solid var(--slp-accent);
+    color: var(--slp-fg);
   }
 
-  .slp-main { display: flex; align-items: flex-start; padding-top: 12px; }
+  .slp-main { display: flex; align-items: flex-start; padding-top: 13px; }
 
   .slp-rail {
-    flex: 0 0 112px; align-self: stretch;
-    display: flex; flex-direction: column; gap: 2px;
+    flex: 0 0 116px; align-self: stretch;
+    display: flex; flex-direction: column; gap: 3px;
     padding: 0 13px 0 1px;
     border-right: 1px solid var(--slp-line);
     margin-right: 17px;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
+  .slp.light .slp-rail { border-right-style: dashed; border-right-width: 1.5px; }
   .slp-rail::-webkit-scrollbar { display: none; }
   .slp-tab {
-    appearance: none; border: 0; background: transparent; color: inherit;
+    appearance: none; border: 1px solid transparent; background: transparent; color: var(--slp-muted);
     font: inherit; text-align: left; cursor: pointer;
-    display: flex; align-items: baseline; gap: 7px;
-    padding: 7px 8px; border-radius: 5px;
-    opacity: .42;
-    transition: opacity .14s ease, background .14s ease;
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 9px; border-radius: 7px;
+    transition: color .14s ease, background .14s ease, border-color .14s ease;
   }
-  .slp-tab:hover { opacity: .74; background: var(--slp-soft); }
+  .slp-tab:hover { color: var(--slp-fg); background: var(--slp-soft); }
   .slp-tab.on {
-    opacity: 1;
-    background: var(--slp-soft);
-    box-shadow: inset 2px 0 0 currentColor;
+    color: var(--slp-accent);
+    background: var(--slp-accent-soft);
+    border-color: var(--slp-border);
+    box-shadow: inset 2.5px 0 0 var(--slp-accent);
+    font-weight: 600;
   }
   .slp-tab .num {
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 9.5px; letter-spacing: 0; opacity: .5;
+    font-size: 9.5px; letter-spacing: 0; opacity: .68;
   }
-  .slp-tab .lab { font-size: 12.5px; letter-spacing: 1.2px; }
+  .slp-tab .lab { font-size: 12.5px; letter-spacing: 1px; }
   .slp-tab .cnt {
     margin-left: auto;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 9.5px; opacity: .48;
+    font-size: 9.5px; opacity: .72;
   }
-  /* 数字徽章：空心、透明底、与面板文字同色；独立居中，避免基线对齐导致偏低 */
   .slp-badge {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     align-self: center;
-    min-width: 11px; height: 11px; padding: 0 2px;
-    border: 1px solid currentColor;
+    min-width: 14px; height: 14px; padding: 0 4px;
+    border: 1px solid var(--slp-accent);
     border-radius: 999px;
-    background: transparent;
-    color: inherit;
+    background: var(--slp-accent-soft);
+    color: var(--slp-accent);
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 7.5px; line-height: 1; font-weight: normal;
+    font-size: 8.5px; line-height: 1; font-weight: 600;
     letter-spacing: 0;
     font-variant-numeric: tabular-nums;
-    opacity: .9;
   }
-  .slp-tab.on .slp-badge { opacity: 1; }
   .slp-tool .slp-badge {
-    height: 10px; min-width: 10px; line-height: 1;
-    font-size: 7px; padding: 0 1px; opacity: 1;
+    height: 13px; min-width: 13px;
+    font-size: 8px; padding: 0 3px;
   }
 
   .slp-view { flex: 1; min-width: 0; padding-bottom: 2px; }
   .slp-sec-hd {
-    display: flex; align-items: baseline; gap: 9px;
+    display: flex; align-items: center; gap: 8px;
     padding: 0 1px 8px; margin-bottom: 10px;
     border-bottom: 1px solid var(--slp-line);
   }
-  .slp-sec-title { font-size: 12.5px; letter-spacing: 1.4px; opacity: .92; }
+  .slp.light .slp-sec-hd { border-bottom-style: dashed; border-bottom-width: 1.5px; }
+  .slp-sec-title {
+    font-size: 12.5px; letter-spacing: 1.4px; font-weight: 600;
+    color: var(--slp-fg);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .slp-sec-title::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--slp-accent); display: inline-block;
+  }
   .slp-sec-count {
     margin-left: auto;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 10px; opacity: .45;
+    font-size: 10px; color: var(--slp-muted);
   }
 
   /* 召回 */
   .slp-ams {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
     gap: 6px;
   }
   .slp-am {
-    appearance: none; border: 1px solid var(--slp-line); border-radius: 4px;
-    background: transparent; color: inherit; cursor: pointer;
+    appearance: none; border: 1px solid var(--slp-line); border-radius: 6px;
+    background: var(--slp-surface); color: var(--slp-fg-soft); cursor: pointer;
     display: flex; align-items: center; gap: 7px;
     padding: 8px 9px; line-height: 1;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 10.5px; letter-spacing: 0; opacity: .6;
-    transition: opacity .14s ease, border-color .14s ease, background .14s ease;
+    font-size: 10.5px; letter-spacing: 0;
+    transition: color .14s ease, border-color .14s ease, background .14s ease;
   }
   .slp-am .dot {
-    width: 4px; height: 4px; border-radius: 50%;
-    background: currentColor; opacity: .18; flex: 0 0 auto;
-    transition: opacity .14s ease;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--slp-muted); opacity: .45; flex: 0 0 auto;
+    transition: opacity .14s ease, background .14s ease;
   }
-  .slp-am:hover { opacity: .95; border-color: var(--slp-line); background: var(--slp-soft); }
-  .slp-am:hover .dot { opacity: .5; }
-  .slp-am.on { opacity: 1; border-color: currentColor; background: var(--slp-soft); }
-  .slp-am.on .dot { opacity: .85; }
+  .slp-am:hover { color: var(--slp-fg); border-color: var(--slp-border); background: var(--slp-soft); }
+  .slp-am:hover .dot { opacity: .85; background: var(--slp-accent); }
+  .slp-am.on { color: var(--slp-accent); border-color: var(--slp-accent); background: var(--slp-accent-soft); font-weight: 600; }
+  .slp-am.on .dot { opacity: 1; background: var(--slp-accent); }
 
   .slp-detail {
     margin-top: 12px; padding: 12px 13px;
-    border: 1px solid var(--slp-line); border-radius: 6px;
+    border: 1px solid var(--slp-line); border-radius: 8px;
+    background: var(--slp-surface);
   }
   .slp-dmeta {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
     margin-bottom: 7px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9.5px; letter-spacing: .5px; opacity: .45;
+    font-size: 10px; letter-spacing: .5px; color: var(--slp-muted);
   }
   .slp-dmeta b {
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-weight: normal; opacity: .9;
+    font-weight: 600; color: var(--slp-accent);
+  }
+  .slp-reason {
+    margin-bottom: 9px; padding: 6px 9px; border-radius: 6px;
+    background: var(--slp-accent-soft); border-left: 2.5px solid var(--slp-accent);
+    font-size: 11.5px; line-height: 1.65; color: var(--slp-fg);
+  }
+  .slp-reason-lab {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 9px; letter-spacing: 1px; color: var(--slp-accent);
+    margin-right: 6px; font-weight: 600;
   }
   .slp-summary {
-    font-size: 12.5px; line-height: 1.82; opacity: .84;
+    font-size: 12.5px; line-height: 1.82; color: var(--slp-fg);
     white-space: pre-wrap; word-break: break-word; text-align: justify;
   }
   .slp-talk {
     margin-top: 10px; padding: 8px 0 1px 11px;
     border-left: 2px solid var(--slp-line);
-    font-size: 11.5px; line-height: 1.75; opacity: .58;
+    font-size: 11.5px; line-height: 1.75; color: var(--slp-fg-soft);
     white-space: pre-wrap; word-break: break-word;
   }
   .slp-talk-label {
     display: block; margin-bottom: 3px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9px; letter-spacing: 1.4px; opacity: .55;
+    font-size: 9px; letter-spacing: 1.4px; color: var(--slp-muted);
   }
   .slp-error {
-    padding: 1px 0; font-size: 11.5px; letter-spacing: .3px; opacity: .5;
+    padding: 3px 0; font-size: 11.5px; letter-spacing: .3px; color: var(--slp-danger);
   }
 
   /* 人物 */
@@ -237,13 +315,14 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     gap: 9px;
   }
   .slp-char {
-    border: 1px solid var(--slp-line); border-radius: 6px;
-    padding: 11px 12px 9px;
+    border: 1px solid var(--slp-line); border-radius: 8px;
+    background: var(--slp-surface);
+    padding: 11px 12px 10px;
   }
-  .slp-char-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; row-gap: 3px; }
+  .slp-char-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; row-gap: 3px; }
   .slp-name {
-    appearance: none; border: 0; background: none; color: inherit;
-    font: inherit; font-size: 13.5px; letter-spacing: .6px;
+    appearance: none; border: 0; background: none; color: var(--slp-fg);
+    font: inherit; font-size: 13.5px; font-weight: 600; letter-spacing: .5px;
     padding: 0; cursor: pointer; text-align: left;
     max-width: 100%; overflow-wrap: anywhere;
     position: relative;
@@ -251,135 +330,158 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   .slp-name::after {
     content: ""; position: absolute; left: -4px; right: -4px; top: -7px; bottom: -7px;
   }
-  .slp-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .slp-name:hover { color: var(--slp-accent); text-decoration: underline; text-underline-offset: 3px; }
   .slp-new {
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
     font-size: 8.5px; letter-spacing: 1px; line-height: 1.5;
-    padding: 0 4px; border: 1px solid var(--slp-line); border-radius: 2px;
-    opacity: .45;
+    padding: 0 5px; border: 1px solid var(--slp-border); border-radius: 999px;
+    background: var(--slp-soft); color: var(--slp-accent);
   }
   .slp-chaos-num {
     margin-left: auto;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 9.5px; letter-spacing: 0; opacity: .45;
+    font-size: 9.5px; letter-spacing: 0; color: var(--slp-muted);
   }
   .slp-meter { display: flex; gap: 2px; margin: 8px 0 9px; height: 4px; }
   .slp-meter i {
     flex: 1; min-width: 0; height: 100%; border-radius: 1px;
     background: var(--slp-soft); border: 0;
   }
-  .slp-meter i.on { background: currentColor; opacity: .62; }
-  .slp-meter.hot i.on { opacity: .92; }
-  .slp-rows { display: flex; flex-direction: column; gap: 3px; }
+  .slp-meter i.on { background: var(--slp-accent); opacity: .72; }
+  .slp-meter.hot i.on { background: var(--slp-warn); opacity: .95; }
+  .slp-rows { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
   .slp-row { display: flex; align-items: flex-start; gap: 0; }
   .slp-lab {
     flex: 0 0 48px; padding-top: 1px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
     font-size: 10px; letter-spacing: .8px; line-height: 1.75;
-    opacity: .37;
+    color: var(--slp-muted);
   }
   .slp-val {
     flex: 1; min-width: 0;
-    font-size: 12.5px; line-height: 1.76; opacity: .82;
+    font-size: 12.5px; line-height: 1.76; color: var(--slp-fg);
     white-space: pre-wrap; word-break: break-word;
   }
-  .slp-val.mute { opacity: .3; }
+  .slp-val.mute { color: var(--slp-muted); opacity: .65; }
+  .slp-val.hot { color: var(--slp-accent); }
   .slp-hub-status {
     margin-top: 9px; padding: 7px 9px;
-    border: 1px dashed var(--slp-line); border-radius: 4px;
+    border: 1px dashed var(--slp-line); border-radius: 6px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 10px; letter-spacing: .3px; opacity: .5;
+    font-size: 10px; letter-spacing: .3px; color: var(--slp-muted);
   }
 
   /* 地点 */
   .slp-locs { display: flex; flex-direction: column; gap: 8px; }
   .slp-loc-item { display: flex; flex-direction: column; }
   .slp-loc {
-    appearance: none; border: 1px solid var(--slp-line); border-radius: 5px;
-    background: transparent; color: inherit; cursor: pointer;
+    appearance: none; border: 1px solid var(--slp-line); border-radius: 7px;
+    background: var(--slp-surface); color: var(--slp-fg); cursor: pointer;
     display: flex; align-items: center; gap: 10px;
-    width: 100%; padding: 10px 11px; text-align: left;
+    width: 100%; padding: 10px 12px; text-align: left;
     font: inherit; font-size: 12.5px; letter-spacing: .5px;
     transition: border-color .14s ease, background .14s ease;
   }
-  .slp-loc:hover { border-color: currentColor; background: var(--slp-soft); }
+  .slp-loc:hover { border-color: var(--slp-accent); background: var(--slp-soft); }
   .slp-loc:disabled { cursor: default; opacity: .6; }
   .slp-loc .idx {
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 9.5px; opacity: .35;
+    font-size: 9.5px; color: var(--slp-accent); opacity: .8;
   }
   .slp-loc .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .slp-loc .go {
     flex: 0 0 auto;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9.5px; letter-spacing: .5px; opacity: .4;
+    font-size: 10px; letter-spacing: .5px; color: var(--slp-muted);
   }
-  .slp-loc:hover .go { opacity: .8; }
+  .slp-loc:hover .go { color: var(--slp-accent); }
   .slp-loc-status {
     padding: 6px 2px 1px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 10px; letter-spacing: .3px; opacity: .45;
+    font-size: 10px; letter-spacing: .3px; color: var(--slp-muted);
   }
-  .slp-loc-status.err { opacity: .55; }
+  .slp-loc-status.err { color: var(--slp-danger); }
 
-  /* 意外 */
+  /* 动态 / 意外 */
   .slp-chaos-card {
-    border: 1px solid var(--slp-line); border-radius: 6px;
+    border: 1px solid var(--slp-line); border-radius: 8px;
+    background: var(--slp-surface);
     padding: 12px 13px 11px;
+  }
+  .slp-chaos-card.cue {
+    border-color: var(--slp-cue);
+    border-left-width: 3px;
   }
   .slp-chaos-card + .slp-chaos-card { margin-top: 10px; }
   .slp-chaos-top {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-bottom: 8px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9.5px; letter-spacing: 1px; opacity: .42;
+    font-size: 10px; letter-spacing: .8px; color: var(--slp-muted);
   }
   .slp-chaos-tag {
-    padding: 1px 6px 0;
-    border: 1px solid var(--slp-line); border-radius: 3px;
-    font-size: 10.5px; letter-spacing: .8px; opacity: .85;
+    padding: 1px 7px;
+    border: 1px solid var(--slp-border); border-radius: 999px;
+    background: var(--slp-soft); color: var(--slp-accent);
+    font-size: 10px; letter-spacing: .6px; font-weight: 600;
+  }
+  .slp-chaos-tag.cue {
+    border-color: var(--slp-cue);
+    background: var(--slp-cue-soft);
+    color: var(--slp-cue);
   }
   .slp-chaos-text {
-    font-size: 12.5px; line-height: 1.8; opacity: .82;
+    font-size: 12.5px; line-height: 1.8; color: var(--slp-fg);
     white-space: pre-wrap; word-break: break-word;
   }
-  .slp-chaos-empty { font-size: 12px; letter-spacing: .3px; opacity: .34; padding: 1px 0 2px; }
+  .slp-chaos-sub {
+    margin-top: 6px; font-size: 11px; line-height: 1.6; color: var(--slp-muted);
+  }
+  .slp-chaos-empty { font-size: 12px; letter-spacing: .3px; color: var(--slp-muted); padding: 1px 0 2px; }
   .slp-chaos-meter {
     display: flex; align-items: center; gap: 9px;
     margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--slp-line);
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 9.5px; letter-spacing: .5px; opacity: .42;
+    font-size: 10px; letter-spacing: .5px; color: var(--slp-muted);
   }
+  .slp.light .slp-chaos-meter { border-top-style: dashed; }
   .slp-chaos-meter .slp-meter { flex: 1; margin: 0; }
   .slp-chaos-meter .num {
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-    font-size: 9.5px; opacity: .8; font-variant-numeric: tabular-nums;
+    font-size: 10px; color: var(--slp-fg-soft); font-variant-numeric: tabular-nums;
+  }
+  .slp-ack-note {
+    margin-top: 9px; padding: 6px 10px;
+    border: 1px dashed var(--slp-line); border-radius: 6px;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 10.5px; line-height: 1.55; color: var(--slp-muted);
   }
 
   .slp-empty {
     padding: 12px 0 6px;
     font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-    font-size: 11px; letter-spacing: .5px; opacity: .32;
+    font-size: 11px; letter-spacing: .5px; color: var(--slp-muted);
   }
 
   @media (max-width: 600px) {
-    .slp { padding: 12px 12px 11px; border-radius: 8px; }
-    .slp-input { font-size: 14px; padding-left: 9px; }
+    .slp { padding: 12px 12px 11px; border-radius: 10px; }
+    .slp-input { font-size: 14px; padding-left: 10px; }
     .slp-main { display: block; padding-top: 10px; }
     .slp-rail {
       flex: none; flex-direction: row; align-items: center;
-      overflow-x: auto; gap: 4px;
+      overflow-x: auto; gap: 5px;
       padding: 0 0 9px; margin: 0 0 11px;
       border-right: 0; border-bottom: 1px solid var(--slp-line);
       -webkit-overflow-scrolling: touch;
     }
+    .slp.light .slp-rail { border-bottom-style: dashed; border-bottom-width: 1.5px; }
     .slp-tab {
-      flex: 0 0 auto; padding: 7px 9px; align-items: center;
+      flex: 0 0 auto; padding: 6px 9px; align-items: center;
       box-shadow: none;
     }
-    .slp-tab.on { box-shadow: inset 0 -2px 0 currentColor; }
+    .slp-tab.on { box-shadow: inset 0 -2px 0 var(--slp-accent); }
     .slp-tab .num { display: none; }
     .slp-tab .cnt { margin-left: 3px; }
-    .slp-tool { padding: 9px 5px; }
+    .slp-tool { padding: 6px 8px; }
     .slp-ams { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
     .slp-am { padding: 9px 8px; }
     .slp-cast { grid-template-columns: 1fr; }
@@ -436,6 +538,23 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     return out;
   }
 
+  function parseMatchReasons(raw) {
+    var text = tag(raw, 'match');
+    var map = {};
+    if (!text) return map;
+    var lines = text.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = trim(lines[i]).replace(/^[-*·]\s*/, '');
+      if (!line) continue;
+      var sep = line.search(/[|｜]/);
+      if (sep < 0) continue;
+      var code = trim(line.slice(0, sep)).toUpperCase();
+      var reason = trim(line.slice(sep + 1));
+      if (/^AM\d+$/.test(code) && reason) map[code] = reason;
+    }
+    return map;
+  }
+
   function splitSegments(s) {
     var i1 = s.indexOf('|');
     if (i1 < 0) return [s];
@@ -447,18 +566,19 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   function parseSoul(raw) {
     var text = tag(raw, 'soul');
     var rows = [];
-    if (!text) return rows;
+    var isNsfw = false;
+    if (!text) return { rows: rows, isNsfw: false };
     var lines = text.split(/\r?\n/);
     for (var i = 0; i < lines.length; i++) {
       var line = trim(lines[i]);
       if (!line) continue;
-      if (/^nsfw$/i.test(line)) continue;
+      if (/^nsfw$/i.test(line)) { isNsfw = true; continue; }
       var m = line.match(/^【([^】]+)】\s*([\s\S]*)$/);
       if (!m) continue;
       var parts = splitSegments(trim(m[2]));
       rows.push({ name: trim(m[1]), boundary: parts[0] || '', refuse: parts[1] || '', proactive: parts[2] || '' });
     }
-    return rows;
+    return { rows: rows, isNsfw: isNsfw };
   }
 
   function normalizeName(name) {
@@ -512,6 +632,41 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     return out;
   }
 
+  function parseWorldAckFromRaw(raw) {
+    var block = tag(raw, 'world_ack');
+    if (!block) return null;
+    var picked = null;
+    var skippedIds = [];
+    var skippedReason = '';
+    var lines = block.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = trim(lines[i]).replace(/^[-*·]\s*/, '');
+      if (!line) continue;
+      var m = line.match(/^(pick(?:ed)?|skip(?:ped)?)\s*[:：]\s*(.*)$/i);
+      if (!m) continue;
+      var kind = m[1].toLowerCase();
+      var fields = m[2].split(/[|｜]/);
+      if (kind.indexOf('pick') === 0) {
+        var pid = trim(fields[0]).split(/[,，、;；\s]+/)[0] || '';
+        if (!pid || /^(无|none|-|—)$/i.test(pid)) continue;
+        picked = {
+          id: pid,
+          targetTag: trim(fields[1] || ''),
+          reason: trim(fields.slice(2).join(' | '))
+        };
+      } else {
+        var ids = trim(fields[0]).split(/[,，、;；\s]+/);
+        for (var j = 0; j < ids.length; j++) {
+          var sid = trim(ids[j]);
+          if (sid && !/^(无|none|-|—)$/i.test(sid) && skippedIds.indexOf(sid) < 0) skippedIds.push(sid);
+        }
+        if (!skippedReason) skippedReason = trim(fields.slice(1).join(' | '));
+      }
+    }
+    if (!picked && !skippedIds.length) return null;
+    return { picked: picked, skippedIds: skippedIds, skippedReason: skippedReason };
+  }
+
   function currentMessage() {
     try {
       var p = window.parent;
@@ -536,8 +691,7 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     return null;
   }
 
-  function currentRaw() {
-    var msg = currentMessage();
+  function currentRaw(msg) {
     var tasks = msg && msg.sl_plot_tasks;
     if (!tasks || typeof tasks !== 'object') return '';
     var best = '';
@@ -549,12 +703,28 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     return best;
   }
 
-  var RAW = currentRaw();
+  function currentAck(msg, raw) {
+    var ack = msg && msg.sl_world_ack;
+    if (ack && typeof ack === 'object') {
+      return {
+        picked: ack.picked && ack.picked.id ? ack.picked : null,
+        skippedIds: Array.isArray(ack.skippedIds) ? ack.skippedIds : [],
+        skippedReason: String(ack.skippedReason || '')
+      };
+    }
+    return parseWorldAckFromRaw(raw);
+  }
+
+  var MSG = currentMessage();
+  var RAW = currentRaw(MSG);
   var RECALL = parseRecall(TAIL);
-  var SOUL = parseSoul(TAIL);
+  var MATCH_REASONS = parseMatchReasons(RAW);
+  var SOUL_PARSED = parseSoul(TAIL);
+  var SOUL = SOUL_PARSED.rows;
+  var IS_NSFW = SOUL_PARSED.isNsfw;
   var CHAOS = parseChaosText(tag(TAIL, 'chaos'));
-  // 后台切入：状态栏事件池被选中的那一条（<world_cue>），与 <chaos> 全局意外分工
   var WORLD_CUE = tag(TAIL, 'world_cue');
+  var ACK = currentAck(MSG, RAW);
   var BG = parseBg(tag(RAW, 'chaos_bg') || tag(TAIL, 'chaos_bg'));
   var CHARS = parseCharCounts(tag(RAW, 'chaos_char') || tag(TAIL, 'chaos_char'));
   var SPOTS = parseSpot(TAIL);
@@ -568,7 +738,8 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   }
   var PROACTIVE_COUNT = 0;
   for (var pi = 0; pi < SOUL.length; pi++) if (hasProactive(SOUL[pi])) PROACTIVE_COUNT++;
-  var GLOBAL_EVENT = (CHAOS ? 1 : 0) + (WORLD_CUE ? 1 : 0);
+  var HAS_PICKED_EVENT = !!(WORLD_CUE || (ACK && ACK.picked));
+  var GLOBAL_EVENT = (CHAOS ? 1 : 0) + (HAS_PICKED_EVENT ? 1 : 0);
 
   function pct(v) {
     var n = Number(v);
@@ -606,7 +777,6 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   }
   function saveTheme(theme) { try { window.localStorage.setItem(THEME_KEY, theme); } catch (e) { /* ignore */ } }
 
-  /* 折叠/展开状态与主题缓存同机制：新消息重建面板后仍保持用户选择 */
   var FOLD_KEY = 'sese_ledger_plot_panel_collapsed';
   function loadCollapsed() {
     try { return window.localStorage.getItem(FOLD_KEY) === '1'; } catch (e) { return false; }
@@ -633,7 +803,6 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     return null;
   }
 
-  /** 纪要表里常把换行存成字面量 \n（反斜杠+n）；显示前归一成真换行，交给 pre-wrap 排版。 */
   function normalizeText(value) {
     return String(value == null ? '' : value)
       .replace(/\\+r\\+n/g, '\n')
@@ -725,6 +894,7 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   function sectionHeader(title, count) {
     var hd = el('div', 'slp-sec-hd');
     hd.appendChild(el('span', 'slp-sec-title', title));
+    if (IS_NSFW && title === '人物') hd.appendChild(el('span', 'slp-pill nsfw', 'NSFW'));
     if (count) hd.appendChild(el('span', 'slp-sec-count', count));
     return hd;
   }
@@ -733,10 +903,13 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     var head = el('div', 'slp-head');
     var row = el('div', 'slp-head-row');
     row.appendChild(el('div', 'slp-kicker', '本轮输入'));
+    if (IS_NSFW) row.appendChild(el('span', 'slp-pill nsfw', 'NSFW'));
+    if (HAS_PICKED_EVENT) row.appendChild(el('span', 'slp-pill cue', '后台入戏'));
 
     var tools = el('div', 'slp-tools');
-    var themeBtn = el('button', 'slp-tool', state.theme === 'light' ? '深色' : '浅色');
+    var themeBtn = el('button', 'slp-tool', state.theme === 'light' ? '☾ Storm' : '☀ 手账');
     themeBtn.type = 'button';
+    themeBtn.title = state.theme === 'light' ? '切换为夜间 TokyoNight Storm' : '切换为日间奶油手账';
     themeBtn.addEventListener('click', function () {
       state.theme = state.theme === 'light' ? 'dark' : 'light';
       saveTheme(state.theme);
@@ -826,12 +999,19 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
 
     if (state.activeAm) {
       var detail = el('div', 'slp-detail');
+      var matchReason = MATCH_REASONS[state.activeAm] || '';
       var res = summaryCache[state.activeAm];
       if (!res || !res.ok) {
         res = fetchSummary(state.activeAm);
         if (res.ok) summaryCache[state.activeAm] = res;
       }
       if (!res.ok) {
+        if (matchReason) {
+          var reasonBoxOnly = el('div', 'slp-reason');
+          reasonBoxOnly.appendChild(el('span', 'slp-reason-lab', '召回依据'));
+          reasonBoxOnly.appendChild(document.createTextNode(matchReason));
+          detail.appendChild(reasonBoxOnly);
+        }
         detail.appendChild(el('div', 'slp-error', res.reason || '读取纪要失败。'));
       } else {
         var meta = el('div', 'slp-dmeta');
@@ -839,6 +1019,12 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
         meta.appendChild(el('span', null, '时间跨度'));
         meta.appendChild(el('span', null, res.time || '—'));
         detail.appendChild(meta);
+        if (matchReason) {
+          var reasonBox = el('div', 'slp-reason');
+          reasonBox.appendChild(el('span', 'slp-reason-lab', '召回依据'));
+          reasonBox.appendChild(document.createTextNode(matchReason));
+          detail.appendChild(reasonBox);
+        }
         detail.appendChild(el('div', 'slp-summary', res.summary || '（无纪要内容）'));
         if (res.talk) {
           var talk = el('div', 'slp-talk');
@@ -852,10 +1038,10 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     return pane;
   }
 
-  function makeRow(label, value, muted) {
+  function makeRow(label, value, tone) {
     var row = el('div', 'slp-row');
     row.appendChild(el('span', 'slp-lab', label));
-    row.appendChild(el('span', 'slp-val' + (muted ? ' mute' : ''), value || '—'));
+    row.appendChild(el('span', 'slp-val' + (tone ? ' ' + tone : ''), value || '—'));
     return row;
   }
 
@@ -890,12 +1076,13 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
       if (typeof chaosVal === 'number') card.appendChild(meter(chaosVal, pct(chaosVal) >= 80));
 
       var rows = el('div', 'slp-rows');
-      rows.appendChild(makeRow('防全知', entry.boundary || '无', !entry.boundary || entry.boundary === '无认知盲点'));
+      rows.appendChild(makeRow('防全知', entry.boundary || '无', (!entry.boundary || entry.boundary === '无认知盲点') ? 'mute' : ''));
       if (!isHero) {
         var refuse = entry.refuse || '';
-        rows.appendChild(makeRow('拒绝', refuse || '无', !refuse || refuse === '无'));
+        rows.appendChild(makeRow('拒绝', refuse || '无', (!refuse || refuse === '无') ? 'mute' : ''));
         var proactive = proactiveText(entry);
-        rows.appendChild(makeRow('主动', proactive || '未触发', !proactive || proactive === '无'));
+        var activePro = hasProactive(entry);
+        rows.appendChild(makeRow('主动', proactive || '未触发', activePro ? 'hot' : 'mute'));
       }
       card.appendChild(rows);
       grid.appendChild(card);
@@ -952,14 +1139,21 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
 
   function renderChaos() {
     var pane = el('div', 'slp-pane');
-    if (WORLD_CUE) {
-      var cueCard = el('div', 'slp-chaos-card');
+    var picked = ACK && ACK.picked ? ACK.picked : null;
+    if (WORLD_CUE || picked) {
+      var cueCard = el('div', 'slp-chaos-card cue');
       var cueTop = el('div', 'slp-chaos-top');
-      cueTop.appendChild(el('span', null, '后台切入'));
+      cueTop.appendChild(el('span', 'slp-chaos-tag cue', '后台切入'));
+      if (picked && picked.id) cueTop.appendChild(el('span', 'slp-pill cue', picked.id));
+      if (picked && picked.targetTag) cueTop.appendChild(el('span', null, '落点：' + picked.targetTag));
       cueCard.appendChild(cueTop);
-      cueCard.appendChild(el('div', 'slp-chaos-text', WORLD_CUE));
+      cueCard.appendChild(el('div', 'slp-chaos-text', WORLD_CUE || '已并入本轮 <chaos> 全局意外演绎。'));
+      if (picked && picked.reason) {
+        cueCard.appendChild(el('div', 'slp-chaos-sub', '选中依据：' + picked.reason));
+      }
       pane.appendChild(cueCard);
     }
+
     var card = el('div', 'slp-chaos-card');
     if (CHAOS) {
       var top = el('div', 'slp-chaos-top');
@@ -978,6 +1172,12 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
       card.appendChild(mrow);
     }
     pane.appendChild(card);
+
+    if (ACK && ACK.skippedIds && ACK.skippedIds.length) {
+      var noteText = '本轮已压住 ' + ACK.skippedIds.length + ' 条后台候选';
+      if (ACK.skippedReason) noteText += '：' + ACK.skippedReason;
+      pane.appendChild(el('div', 'slp-ack-note', noteText));
+    }
     return pane;
   }
 
@@ -986,16 +1186,16 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
     if (!root) return;
     root.className = 'slp' + (state.theme === 'light' ? ' light' : '');
     root.innerHTML = '';
+    var hasDyn = BG != null || CHAOS || HAS_PICKED_EVENT || (ACK && ACK.skippedIds && ACK.skippedIds.length);
     var tabs = [];
     if (RECALL.length) tabs.push({ key: 'recall', num: '01', label: '召回', count: RECALL.length, badge: 0 });
     if (SOUL.length) tabs.push({ key: 'cast', num: '02', label: '人物', count: SOUL.length, badge: PROACTIVE_COUNT });
     if (SPOTS.length) tabs.push({ key: 'spot', num: '03', label: '地点', count: SPOTS.length, badge: 0 });
-    if (BG != null || CHAOS || WORLD_CUE) tabs.push({ key: 'chaos', num: '04', label: '动态', count: 0, badge: GLOBAL_EVENT });
+    if (hasDyn) tabs.push({ key: 'chaos', num: '04', label: '动态', count: 0, badge: GLOBAL_EVENT });
 
     root.appendChild(renderHead(tabs.length > 0));
     if (!tabs.length || state.collapsed) return;
 
-    /* 默认页签：人物优先；本轮没有人物时退回第一个可用页签。页签选择不持久化。 */
     var preferred = 'cast';
     var active = state.tab;
     var hasActive = false, hasPreferred = false;
@@ -1052,8 +1252,6 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
  * 会一直吞到文档末尾，导致主脚本不执行、面板只剩空壳。注入前统一还原。
  */
 export function normalizePanelScriptClose(text: string): string {
-  // 构建器会把面板 HTML 里的 </script> 转义成 <\/script>；这里用字符码构造，
-  // 避免构建器的字符串折叠/转义把还原目标再次改掉。
   const BS = String.fromCharCode(92);
   const SL = String.fromCharCode(47);
   return String(text || '').split('<' + BS + SL + 'script>').join('<' + SL + 'script>');
