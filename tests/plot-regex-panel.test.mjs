@@ -151,6 +151,50 @@ test('剧情推进面板：适配 v2 格式（NSFW、match 召回依据、world_
   }
 });
 
+test('剧情推进面板：RAW 含 thinking 内未闭合 <match>/<chaos_bg>/<world_ack> 时仍精确提取面板字段', () => {
+  const input = '推门进屋';
+  const tail = '<recall>AM0001</recall><soul>【主角】无认知盲点</soul><spot>客厅</spot>';
+  const rawWithThinking = [
+    '<thinking>',
+    '先写一段思考：<match>草稿乱写，而且忘了闭合',
+    '这里还提到了 <chaos_bg>999 与 <world_ack> 跳过',
+    '</thinking>',
+    '<match>',
+    'AM0001 | 交代客厅钥匙来历',
+    '</match>',
+    '<chaos_bg>chaos_bg=35</chaos_bg>',
+    '<world_ack>',
+    'skip: in_1 | 室内安静',
+    '</world_ack>',
+  ].join('\n');
+  const { hostDom, panelDom } = runPanelWithHost({
+    input,
+    tail,
+    message: {
+      is_user: true,
+      mes: '<本轮用户输入>\n' + input + '\n</本轮用户输入>\n' + tail,
+      sl_plot_tasks: { '魔改召回': rawWithThinking },
+    },
+    summaryRows: { AM0001: { '时间跨度': '昨日', '纪要': '拿到客厅备用钥匙。', '重要对话': '' } },
+  });
+  try {
+    const doc = panelDom.window.document;
+    const recallTab = Array.from(doc.querySelectorAll('.slp-tab')).find((b) => b.textContent.includes('召回'));
+    recallTab.click();
+    doc.querySelector('.slp-am').click();
+    assert.match(doc.querySelector('.slp-reason').textContent, /交代客厅钥匙来历/);
+    assert.doesNotMatch(doc.querySelector('.slp-reason').textContent, /草稿乱写/);
+    const dynTab = Array.from(doc.querySelectorAll('.slp-tab')).find((b) => b.textContent.includes('动态'));
+    dynTab.click();
+    const viewText = doc.querySelector('.slp-view').textContent;
+    assert.match(viewText, /35 \/ 100/);
+    assert.match(viewText, /本轮已压住 1 条后台候选：室内安静/);
+  } finally {
+    panelDom.window.close();
+    hostDom.window.close();
+  }
+});
+
 test('剧情推进面板：无 world_cue / sl_world_ack / match 时安全降级不报错', () => {
   const { hostDom, panelDom } = runPanelWithHost({
     input: '你好',

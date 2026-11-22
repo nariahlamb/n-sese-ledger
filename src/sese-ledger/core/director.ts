@@ -26,6 +26,7 @@ import { describeErrorSummary } from './error-detail';
 import magicRecallAsset from '../assets/plot-preset-magic-recall.json';
 import pureRecallAsset from '../assets/plot-preset-pure-recall.json';
 import { buildStatusbarCandidatePrompt, buildStatusbarCognitionPrompt, type StatusbarNarrativeSnapshot } from './statusbar-cognition';
+import { stripContextTags } from '../../unified-statusbar/core/context-strip';
 
 /** 预设内的提示词项（存储形态；hidden=true 的段/块不进请求，顺序位保留）。 */
 export type DriverPromptMessage = LedgerPromptItemSpec;
@@ -291,14 +292,52 @@ export function renderPlaceholders(text: string, ctx: PlaceholderContext): strin
   });
 }
 
-/** 标签提取：每个标签取最后一次出现的内容；支持自闭合缺失返回空。 */
+const THINKING_SHELL_TAGS = ['thinking', 'think', 'reasoning', 'reflection', 'deep_thinking', 'deep_think', 'dream_think', 'thought'];
+
+/** 剥除思维链外壳：先用状态栏同款栈式剥离清掉完整思考块，再切除前导孤儿 </thinking> / </think>（防预填漏开标签）。 */
+function stripThinkingForTagExtract(raw: string, targetTag: string): string {
+  let s = String(raw || '');
+  if (!s) return '';
+  if (THINKING_SHELL_TAGS.includes(String(targetTag || '').trim().toLowerCase())) return s;
+  s = stripContextTags(s, THINKING_SHELL_TAGS);
+  // 若文本里已无开标签但仍留有 </thinking> / </think>（如上游预填了开标签），只取最后一个闭合思考标签之后的部分
+  if (!/<(?:thinking|think)(?=[\s/>])[^<>]*>/i.test(s)) {
+    const closeRe = /<\/(?:thinking|think)\s*>/gi;
+    let lastEnd = -1;
+    let cm: RegExpExecArray | null;
+    while ((cm = closeRe.exec(s)) !== null) lastEnd = cm.index + cm[0].length;
+    if (lastEnd >= 0) s = s.slice(lastEnd);
+  }
+  return s;
+}
+
+/** 标签提取：先剥思维链，再为每个 </tag> 配对前面最近的 <tag>（防未闭合顺嘴提及吞掉后续段落），取最后一次出现。 */
 export function extractTag(raw: string, tag: string): string {
-  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`<${escaped}>([\\s\\S]*?)</${escaped}>`, 'g');
+  const name = String(tag || '').trim();
+  if (!name) return '';
+  const s = stripThinkingForTagExtract(raw, name);
+  const open = `<${name}>`;
+  const close = `</${name}>`;
+  let from = 0;
   let last = '';
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(String(raw || ''))) !== null) last = m[1].trim();
+  while (true) {
+    const closeIdx = s.indexOf(close, from);
+    if (closeIdx < 0) break;
+    if (closeIdx > from) {
+      const openIdx = s.lastIndexOf(open, closeIdx - 1);
+      if (openIdx >= from) last = s.slice(openIdx + open.length, closeIdx).trim();
+    }
+    from = closeIdx + close.length;
+  }
   return last;
+}
+
+/** world_cue 占位词归空：若推进 AI 把“留空/无/跳过”写进标签里，按空处理，不污染正文指令。 */
+function normalizeWorldCueContent(content: string): string {
+  const t = String(content || '').trim();
+  if (!t) return '';
+  if (/^[（(\[]?(?:留空|空|无|略|跳过|不触发|未触发|不需要|无需|none|null|n\/a|-|—)[）)\]。.！!]*$/i.test(t)) return '';
+  return t;
 }
 
 /** 已有纪要（资料块【已有纪要】）：纪要表「编码索引 + 概览/概要」两列全量，格式 `AM0001：概览内容`。 */
@@ -391,7 +430,8 @@ export function assembleFinalDirective(input: AssembleInput): string {
   const { preset, userInput, raw } = input;
   let out = String(preset.finalDirectiveTemplate || '').split('{{本轮输入}}').join(userInput);
   for (const tag of splitTags(preset.tags)) {
-    const content = extractTag(raw, tag);
+    const rawContent = extractTag(raw, tag);
+    const content = tag === 'world_cue' ? normalizeWorldCueContent(rawContent) : rawContent;
     if (content) {
       out = out.split(`{{${tag}}}`).join(`<${tag}>${content}</${tag}>`);
       continue;

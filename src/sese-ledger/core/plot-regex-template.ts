@@ -505,18 +505,32 @@ export const PLOT_PANEL_HTML = String.raw`<!DOCTYPE html>
   var INPUT = trim(textOf('slp-raw'));
   var TAIL = textOf('slp-tail');
 
-  function tag(raw, name) {
+  function stripThinking(raw) {
     var s = String(raw || '');
+    s = s.replace(/<(thinking|think|reasoning|deep_thinking|thought)(?=[\s/>])[^<>]*>[\s\S]*?<\/\1\s*>/gi, '');
+    if (!/<(?:thinking|think)(?=[\s/>])[^<>]*>/i.test(s)) {
+      var lastClose = Math.max(s.lastIndexOf('</thinking>'), s.lastIndexOf('</think>'));
+      if (lastClose >= 0) {
+        var gt = s.indexOf('>', lastClose);
+        if (gt >= 0) s = s.slice(gt + 1);
+      }
+    }
+    return s;
+  }
+
+  function tag(raw, name) {
+    var s = /^(thinking|think|reasoning|deep_thinking|thought)$/i.test(name) ? String(raw || '') : stripThinking(raw);
     var open = '<' + name + '>';
     var close = '</' + name + '>';
     var from = 0;
     var last = '';
     while (true) {
-      var a = s.indexOf(open, from);
-      if (a < 0) break;
-      var b = s.indexOf(close, a + open.length);
+      var b = s.indexOf(close, from);
       if (b < 0) break;
-      last = s.slice(a + open.length, b);
+      if (b > from) {
+        var a = s.lastIndexOf(open, b - 1);
+        if (a >= from) last = s.slice(a + open.length, b);
+      }
       from = b + close.length;
     }
     return trim(last);

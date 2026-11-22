@@ -81,20 +81,25 @@ function v2Context(overrides = {}) {
   };
 }
 
-test('两份内置预设：召回是 0～N 上限，不补位，不固定温柔/无条件主动，不凑盲点', async () => {
-  for (const name of ['魔改召回', '极速纯召回']) {
-    const preset = director.builtinDriverPreset(name);
-    const text = JSON.stringify(preset);
-    assert.match(text, /0～N/);
-    assert.match(text, /同一组 AM/);
-    assert.match(text, /召回 0 条/);
-    assert.doesNotMatch(text, /必须达到\{\{召回数量\}\}|补足到|按照编号从大到小补充/);
-    assert.doesNotMatch(text, /体现角色温柔的一面|角色按自身性格充分发挥主动性/);
-    if (name === '魔改召回') {
-      assert.match(text, /无盲点写“无认知盲点”，不得凑数或虚构/);
-      assert.doesNotMatch(text, /盲点\/限制 1-3 条/);
-    }
-  }
+test('两份内置预设：魔改召回采用至少25条保底（不足全召回），极速纯召回保持0～N；均不固定温柔/无条件主动且不凑盲点', async () => {
+  const magic = director.builtinDriverPreset('魔改召回');
+  const magicText = JSON.stringify(magic);
+  assert.match(magicText, /至少召回 \{\{召回数量\}\} 条 AM/);
+  assert.match(magicText, /必须召回当前所有 AM/);
+  assert.match(magicText, /保底补位：近期前情/);
+  assert.match(magicText, /<=18字/);
+  assert.match(magicText, /同一组 AM/);
+  assert.match(magicText, /无盲点写“无认知盲点”，不得凑数或虚构/);
+  assert.doesNotMatch(magicText, /盲点\/限制 1-3 条/);
+  assert.doesNotMatch(magicText, /体现角色温柔的一面|角色按自身性格充分发挥主动性/);
+
+  const pure = director.builtinDriverPreset('极速纯召回');
+  const pureText = JSON.stringify(pure);
+  assert.match(pureText, /0～N/);
+  assert.match(pureText, /同一组 AM/);
+  assert.match(pureText, /召回 0 条/);
+  assert.doesNotMatch(pureText, /必须达到\{\{召回数量\}\}|补足到|按照编号从大到小补充/);
+  assert.doesNotMatch(pureText, /体现角色温柔的一面|角色按自身性格充分发挥主动性/);
 });
 
 test('v1 快照仍兼容：candidates 回退成 kind=arrival 的事件池；跨聊天/坏版本/坏格式回退', () => {
@@ -380,4 +385,40 @@ test('内置魔改资产已声明 statusbarBridge 与 world_cue 占位/标签', 
   assert.deepEqual(director.splitTags(preset.tags), ['recall', 'spot', 'soul', 'chaos', 'chaos_bg', 'chaos_char', 'world_cue']);
   assert.match(preset.finalDirectiveTemplate, /\{\{chaos\}\}\n\{\{world_cue\}\}\n候选前往地点：/);
   assert.ok(!director.splitTags(preset.tags).includes('world_ack'), 'world_ack 不进 tags');
+});
+
+test('extractTag 与 assembleFinalDirective 防思考链泄漏：thinking 内顺嘴提未闭合/示例标签绝不吞进正文指令', () => {
+  const leakRaw = [
+    '<thinking>',
+    '1. recall 推演：<recall>保持同一组 16 条。',
+    '2. <world_cue>如果写示例</world_cue> 也不能漏到外面',
+    '5. statusbar_events 评估：本轮 <world_cue> 留空，在 <world_ack> 予以跳过说明。',
+    '</thinking>',
+    '<all_am>AM0001, AM0002</all_am>',
+    '<present>on_scene=奈奈；condition=回家路上；conflict=无</present>',
+    '<match>AM0001 | 近期前情</match>',
+    '<recall>AM0001,AM0002</recall>',
+    '<chaos_bg>chaos_bg=22</chaos_bg>',
+    '<chaos_char>死神=47</chaos_char>',
+    '<soul>【主角】无认知盲点\n【死神】无认知盲点 | 无</soul>',
+    '<spot>附近街区-街道,客厅</spot>',
+    '<world_cue></world_cue>',
+  ].join('\n');
+
+  assert.equal(director.extractTag(leakRaw, 'recall'), 'AM0001,AM0002');
+  assert.equal(director.extractTag(leakRaw, 'world_cue'), '');
+  assert.equal(director.extractTag(leakRaw, 'spot'), '附近街区-街道,客厅');
+
+  const preset = director.builtinDriverPreset('魔改召回');
+  const assembled = director.assembleFinalDirective({ preset, userInput: '回家路上聊两句', raw: leakRaw });
+  assert.doesNotMatch(assembled, /<thinking>|<\/thinking>|<all_am>|<present>|<match>|<chaos_bg>|<chaos_char>|<world_cue>|保持同一组|如果写示例/);
+  assert.match(assembled, /<recall>AM0001,AM0002<\/recall>/);
+  assert.match(assembled, /<spot>附近街区-街道,客厅<\/spot>/);
+
+  // 预填吞掉开标签（只有孤儿 </thinking>）与标签内填“留空/无”也安全清除
+  const orphanThink = '先想一想 <recall>乱写\n</thinking>\n<recall>AM0009</recall><world_cue>留空</world_cue><spot>客厅</spot>';
+  assert.equal(director.extractTag(orphanThink, 'recall'), 'AM0009');
+  const assembledOrphan = director.assembleFinalDirective({ preset, userInput: '继续', raw: orphanThink });
+  assert.doesNotMatch(assembledOrphan, /乱写|<world_cue>/);
+  assert.match(assembledOrphan, /<recall>AM0009<\/recall>/);
 });

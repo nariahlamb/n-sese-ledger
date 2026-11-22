@@ -253,8 +253,8 @@ export function buildStatusbarEventPoolPrompt(snapshot: StatusbarNarrativeSnapsh
     parts.push(`[${event.id}] ${kind} | ${event.title} | ${event.cue || '（无切入线索）'} | ${details.join('；') || '（未标注）'}`);
   }
   parts.push('【挑选规则】',
-    '1. 宁缺毋滥、严禁全推：先判断【当前输入】与【上轮正文】是否自然适合接入外部事件；若当前对话紧凑、情绪专一、sceneGuard.blocked 为真，或没有契合的条目，<world_cue> 必须留空。',
-    '2. 限量与防撞车：每轮至多挑选 1 条主事件；若 <chaos> 本轮已触发全局意外/闯入，<world_cue> 不得再推第二条实景事件，至多 0–1 句轻背景风声，或直接留空。',
+    '1. 宁缺毋滥、严禁全推：先判断【当前输入】与【上轮正文】是否自然适合接入外部事件；若当前对话紧凑、情绪专一、sceneGuard.blocked 为真，或没有契合的条目，<world_cue> 必须留空（直接不输出 world_cue 标签或只输出空标签，禁止在标签内写“留空/跳过”等说明；thinking 内只用文字“世界提示”指代，勿写未闭合尖括号标签）。',
+    '2. 限量与防撞车：每轮至多挑选 1 条主事件；若 <chaos> 本轮已触发全局意外/闯入，<world_cue> 不得再推第二条实景事件，至多 0–1 句轻背景风声，或直接留空省略。',
     '3. 认知隔离：只写表面可感知的切入由头（谁、以什么方式出现），不剧透幕后隐情，不替正文写死结局。',
     '4. 回执约束：在原始输出的最后另起 <world_ack>（不写进 <world_cue>，也不写进正文指令）：',
     '   pick: id | targetTag(world_cue 或 chaos) | 一句话理由（本轮没有选中可不写 pick 行，或写 pick: 无）',
