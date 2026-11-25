@@ -12,6 +12,7 @@
 import {
   assembleFinalDirective,
   buildChronicleOverview,
+  buildMindBriefBlock,
   builtinDriverPreset,
   defaultDriverPreset,
   normalizeDriverPreset,
@@ -316,16 +317,36 @@ export function createDirectorRuntime(deps: DirectorRuntimeDeps) {
       if (chat[i] && chat[i].is_user !== true && typeof chat[i].mes === 'string' && chat[i].mes) recent.unshift(chat[i].mes);
     }
       const recentStory = stripWithContextMessages(recent);
+      const statusbarSnapshot = readStatusbarNarrativeSnapshot({ getWindows: statusbarWindows, getChatIdentity: currentChatIdentity });
+      const presentNames: string[] = [];
+      if (book) {
+        const presenceTable = resolveTable(book, '在场角色表');
+        if (presenceTable) {
+          const nameIdx = presenceTable.headers.indexOf('姓名');
+          const colIdx = nameIdx >= 0 ? nameIdx : 1;
+          const rowIds = [...presenceTable.rows.keys()].sort((a, b) => a - b);
+          for (const rid of rowIds) {
+            const n = String(presenceTable.rows.get(rid)?.[colIdx] ?? '').trim();
+            if (n && !presentNames.includes(n)) presentNames.push(n);
+          }
+        }
+      }
+      for (const n of statusbarSnapshot?.onStageNames || []) {
+        const trimmed = String(n || '').trim();
+        if (trimmed && !presentNames.includes(trimmed)) presentNames.push(trimmed);
+      }
+      const mindBrief = book ? buildMindBriefBlock(book, presentNames, recentStory, userInput) : '';
       return {
         userInput,
         lastPlot,
         lastPlotRaw,
         chronicleOverview,
         recentStory,
+        mindBrief,
         rates: preset?.rates,
         // 骰点每轮投一次（同一轮的请求/重试共用同一组值；{{roll_bg}}/{{roll_charN}}/{{roll_fate}} 从这里取值）
         dice: rollDriverDice(),
-        statusbarSnapshot: readStatusbarNarrativeSnapshot({ getWindows: statusbarWindows, getChatIdentity: currentChatIdentity }),
+        statusbarSnapshot,
       };
     }
 

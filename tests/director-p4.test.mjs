@@ -379,11 +379,11 @@ test('无事件池保留单开 chaos 原路径；委派标记为假时不暂停�
   });
 });
 
-test('内置魔改资产已声明 statusbarBridge 与 world_cue 占位/标签', () => {
+test('内置魔改资产已声明 statusbarBridge、radar 与 world_cue 占位/标签', () => {
   const preset = director.builtinDriverPreset('魔改召回');
   assert.equal(preset.statusbarBridge, true);
-  assert.deepEqual(director.splitTags(preset.tags), ['recall', 'spot', 'soul', 'chaos', 'chaos_bg', 'chaos_char', 'world_cue']);
-  assert.match(preset.finalDirectiveTemplate, /\{\{chaos\}\}\n\{\{world_cue\}\}\n候选前往地点：/);
+  assert.deepEqual(director.splitTags(preset.tags), ['recall', 'spot', 'soul', 'radar', 'chaos', 'chaos_bg', 'chaos_char', 'world_cue']);
+  assert.match(preset.finalDirectiveTemplate, /\{\{chaos\}\}\n\{\{radar\}\}\n\{\{world_cue\}\}\n候选前往地点：/);
   assert.ok(!director.splitTags(preset.tags).includes('world_ack'), 'world_ack 不进 tags');
 });
 

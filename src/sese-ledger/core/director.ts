@@ -22,6 +22,7 @@
 // - **不再支持导入旧预设**：只认台账自己的新格式（format 标记 + schemaVersion）。
 
 import type { LedgerBlockContents, LedgerPromptItem, LedgerPromptItemSpec, LedgerTableBlockConfig } from './ai-request';
+import { resolveTable, type BookModel, type TableModel } from './book';
 import { describeErrorSummary } from './error-detail';
 import magicRecallAsset from '../assets/plot-preset-magic-recall.json';
 import pureRecallAsset from '../assets/plot-preset-pure-recall.json';
@@ -260,8 +261,170 @@ export interface PlaceholderContext {
   rates?: DriverRates;
   /** 本轮骰点（{{roll_bg}} / {{roll_charN}} / {{roll_fate}} 的取值来源；缺省则这些占位符原样保留）。 */
   dice?: DriverDice;
+  /** 本轮在场与近期相关核心角色的心路与心境切片（block: 'mindBrief' 用；无数据则空）。 */
+  mindBrief?: string;
   /** 当前聊天的版本化只读认知/候选副本；仅内置魔改预设消费，自定义预设不追加段。 */
   statusbarSnapshot?: StatusbarNarrativeSnapshot | null;
+}
+
+const MIND_BRIEF_MAX_CHARS_PER_ROLE = 6;
+const MIND_BRIEF_CHAR_LIMIT = 750;
+
+function mindTableColumnIndex(table: TableModel | undefined, name: string, fallback = 1): number {
+  if (!table) return -1;
+  const idx = table.headers.indexOf(name);
+  if (idx >= 0) return idx;
+  return fallback >= 0 && fallback < table.headers.length ? fallback : -1;
+}
+
+function collectCoreNamesFromTable(table: TableModel | undefined, colName = '姓名'): string[] {
+  if (!table) return [];
+  const colIdx = mindTableColumnIndex(table, colName, 1);
+  if (colIdx < 0) return [];
+  const out: string[] = [];
+  const rowIds = [...table.rows.keys()].sort((a, b) => a - b);
+  for (const rid of rowIds) {
+    const val = String(table.rows.get(rid)?.[colIdx] ?? '').trim();
+    if (val) out.push(val);
+  }
+  return out;
+}
+
+function countKeywordHits(text: string, keyword: string): number {
+  if (!text || !keyword) return 0;
+  let hits = 0;
+  let pos = 0;
+  while (true) {
+    const idx = text.indexOf(keyword, pos);
+    if (idx < 0) break;
+    hits++;
+    pos = idx + keyword.length;
+  }
+  return hits;
+}
+
+/** 构造推进器【角色心路与心境切片】块：从恋爱对象表/重要角色表筛选在场优先＋近期提及的最多 6 名核心角色，
+ *  拼出「角色心路档案表」非空维度与最近 1~2 篇去标签「恋爱日记表」摘要（单人硬上限 ~750 字）；无数据时返回 ''。 */
+export function buildMindBriefBlock(
+  book: BookModel,
+  presentNames: string[],
+  recentStory: string,
+  userInput: string,
+): string {
+  const protagonistNames = new Set(collectCoreNamesFromTable(resolveTable(book, '主角信息表'), '姓名'));
+  const coreOrder: string[] = [];
+  const coreSet = new Set<string>();
+  for (const tblName of ['恋爱对象表', '重要角色表']) {
+    for (const name of collectCoreNamesFromTable(resolveTable(book, tblName), '姓名')) {
+      if (protagonistNames.has(name) || coreSet.has(name)) continue;
+      coreSet.add(name);
+      coreOrder.push(name);
+    }
+  }
+  if (coreOrder.length === 0) return '';
+
+  const selected: string[] = [];
+  const selectedSet = new Set<string>();
+  for (const raw of presentNames || []) {
+    const name = String(raw || '').trim();
+    if (!name || !coreSet.has(name) || selectedSet.has(name)) continue;
+    selectedSet.add(name);
+    selected.push(name);
+    if (selected.length >= MIND_BRIEF_MAX_CHARS_PER_ROLE) break;
+  }
+
+  if (selected.length < MIND_BRIEF_MAX_CHARS_PER_ROLE) {
+    const mentionSource = `${String(recentStory || '')}\n${String(userInput || '')}`;
+    const rest: { name: string; hits: number; order: number }[] = [];
+    for (let i = 0; i < coreOrder.length; i++) {
+      const name = coreOrder[i];
+      if (selectedSet.has(name)) continue;
+      const hits = countKeywordHits(mentionSource, name);
+      if (hits > 0) rest.push({ name, hits, order: i });
+    }
+    rest.sort((a, b) => (b.hits !== a.hits ? b.hits - a.hits : a.order - b.order));
+    for (const item of rest) {
+      selectedSet.add(item.name);
+      selected.push(item.name);
+      if (selected.length >= MIND_BRIEF_MAX_CHARS_PER_ROLE) break;
+    }
+  }
+  if (selected.length === 0) return '';
+
+  const mindTable = resolveTable(book, 'sheet_char_mind_profile') || resolveTable(book, '角色心路档案表');
+  const diaryTable = resolveTable(book, '恋爱日记表');
+  const mindNameIdx = mindTableColumnIndex(mindTable, '姓名', 1);
+  const diaryWriterIdx = mindTableColumnIndex(diaryTable, '写作角色', 1);
+  const diaryRelIdx = diaryTable ? diaryTable.headers.indexOf('关联角色') : -1;
+  const diaryBodyIdx = diaryTable ? diaryTable.headers.indexOf('日记内容') : -1;
+  const diaryTimeIdx = diaryTable ? diaryTable.headers.indexOf('发生时间') : -1;
+  const diaryTypeIdx = diaryTable ? diaryTable.headers.indexOf('事件类型') : -1;
+
+  const charBlocks: string[] = [];
+  for (const name of selected) {
+    const profileLines: string[] = [];
+    if (mindTable && mindNameIdx >= 0) {
+      const rowIds = [...mindTable.rows.keys()].sort((a, b) => a - b);
+      for (const rid of rowIds) {
+        const cells = mindTable.rows.get(rid);
+        if (!cells || String(cells[mindNameIdx] ?? '').trim() !== name) continue;
+        for (let ci = 1; ci < mindTable.headers.length; ci++) {
+          if (ci === mindNameIdx) continue;
+          const header = String(mindTable.headers[ci] || '').trim();
+          const val = String(cells[ci] ?? '').trim();
+          if (header && val) {
+            const line = `- ${header}：${val}`;
+            profileLines.push(line.length > 220 ? line.slice(0, 219) + '…' : line);
+          }
+        }
+        break;
+      }
+    }
+    const diaryLines: string[] = [];
+    if (diaryTable && diaryWriterIdx >= 0 && diaryBodyIdx >= 0) {
+      const entries: string[] = [];
+      const rowIds = [...diaryTable.rows.keys()].sort((a, b) => a - b);
+      for (const rid of rowIds) {
+        const cells = diaryTable.rows.get(rid);
+        if (!cells || String(cells[diaryWriterIdx] ?? '').trim() !== name) continue;
+        const body = String(cells[diaryBodyIdx] ?? '').replace(/<\/?span\b[^>]*>/gi, '').trim();
+        if (!body) continue;
+        const t = diaryTimeIdx >= 0 ? String(cells[diaryTimeIdx] ?? '').trim() : '';
+        const et = diaryTypeIdx >= 0 ? String(cells[diaryTypeIdx] ?? '').trim() : '';
+        const rel = diaryRelIdx >= 0 ? String(cells[diaryRelIdx] ?? '').trim() : '';
+        const meta = [t, et, rel ? `关联:${rel}` : ''].filter(Boolean).join(' · ');
+        const line = meta ? `- [日记 ${meta}] ${body}` : `- [日记] ${body}`;
+        entries.push(line.length > 220 ? line.slice(0, 219) + '…' : line);
+      }
+      diaryLines.push(...entries.slice(-2));
+    }
+    const allLines = [...profileLines, ...diaryLines];
+    if (allLines.length === 0) continue;
+    let block = `【${name}】\n${allLines.join('\n')}`;
+    if (block.length > MIND_BRIEF_CHAR_LIMIT) {
+      const diaryPart = diaryLines.join('\n');
+      const header = `【${name}】\n`;
+      if (diaryPart && diaryPart.length < MIND_BRIEF_CHAR_LIMIT - header.length - 80) {
+        const profileBudget = MIND_BRIEF_CHAR_LIMIT - header.length - diaryPart.length - 2;
+        const profilePart = profileLines.join('\n');
+        const clippedProfile = profilePart.length > profileBudget
+          ? profilePart.slice(0, Math.max(0, profileBudget - 1)) + '…'
+          : profilePart;
+        block = header + (clippedProfile ? `${clippedProfile}\n${diaryPart}` : diaryPart);
+      }
+      if (block.length > MIND_BRIEF_CHAR_LIMIT) {
+        block = block.slice(0, MIND_BRIEF_CHAR_LIMIT - 1) + '…';
+      }
+    }
+    charBlocks.push(block);
+  }
+  if (charBlocks.length === 0) return '';
+  return [
+    '【角色心路与心境切片】',
+    '以下为本轮在场及近期相关核心角色的心路档案与主观日记切片（仅供推演各自真实视角，严禁让未获知情方偷窥他人心路）：',
+    '',
+    charBlocks.join('\n\n'),
+  ].join('\n');
 }
 
 /** 占位符表：{{本轮输入}} / {{意外倾向}} … / {{roll_bg}} {{roll_char1..5}} {{roll_fate}}。 */
@@ -431,7 +594,7 @@ export function assembleFinalDirective(input: AssembleInput): string {
   let out = String(preset.finalDirectiveTemplate || '').split('{{本轮输入}}').join(userInput);
   for (const tag of splitTags(preset.tags)) {
     const rawContent = extractTag(raw, tag);
-    const content = tag === 'world_cue' ? normalizeWorldCueContent(rawContent) : rawContent;
+    const content = (tag === 'world_cue' || tag === 'radar') ? normalizeWorldCueContent(rawContent) : rawContent;
     if (content) {
       out = out.split(`{{${tag}}}`).join(`<${tag}>${content}</${tag}>`);
       continue;
@@ -598,6 +761,7 @@ export function buildPromptBlocks(ctx: PlaceholderContext): LedgerBlockContents 
   return {
     dossier: overview ? '【已有纪要】\n\n' + overview : '',
     context: contextParts.join('\n\n'),
+    mindBrief: String(ctx.mindBrief || '').trim(),
     prevDirective: String(ctx.lastPlot || '').trim(),
     scan: '下面为与本轮推演相关的世界观、人物与设定条目（世界书条目里关键词命中的参考资料＋当前角色卡设定：用户人设 / 角色卡描述 / 角色性格 / 场景 / 示例对话），供理解既有设定用。',
   };

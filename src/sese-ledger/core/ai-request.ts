@@ -11,12 +11,13 @@
 
 import { STANDARD_PROMPT_MIDDLE } from '../../unified-statusbar/core/ai-request-pipeline';
 
-export type LedgerBlockId = 'scan' | 'dossier' | 'context' | 'prevDirective' | 'tableData';
+export type LedgerBlockId = 'scan' | 'dossier' | 'context' | 'mindBrief' | 'prevDirective' | 'tableData';
 
 export const LEDGER_BLOCK_LABELS: Record<LedgerBlockId, string> = {
   scan: '参考资料块',
   dossier: '资料块',
   context: '上下文块',
+  mindBrief: '角色心路与心境切片块',
   prevDirective: '上轮推进结果块',
   tableData: '表数据块',
 };
@@ -41,7 +42,7 @@ export const LEDGER_FILL_NATIVE_SLOTS: readonly LedgerFillNativeSlot[] = LEDGER_
 
 /** 各请求可用的固定块（顺序 = 默认顺序）。 */
 export const FILL_BLOCK_IDS: LedgerBlockId[] = ['scan', 'dossier', 'context'];
-export const DIRECTOR_BLOCK_IDS: LedgerBlockId[] = ['scan', 'dossier', 'context', 'prevDirective'];
+export const DIRECTOR_BLOCK_IDS: LedgerBlockId[] = ['scan', 'dossier', 'context', 'mindBrief', 'prevDirective'];
 /** 推进侧可插入的固定块全清单（含只能显式插入的表数据块——它带自己的取值配置，不参与顺序归一化）。 */
 export const DIRECTOR_BLOCK_CATALOG: LedgerBlockId[] = [...DIRECTOR_BLOCK_IDS, 'tableData'];
 
@@ -148,6 +149,8 @@ export interface LedgerBlockContents {
   dossier?: string;
   /** 上下文块正文（抬头由调用方拼：填表=【当前正文】/推进=【上轮正文】＋【当前输入】）。 */
   context?: string;
+  /** 角色心路与心境切片块正文（推进侧按在场与近期提及自动装配；为空时自动跳过零消耗）。 */
+  mindBrief?: string;
   /** 上轮推进结果块正文（抬头【上轮推进结果】由本层拼）。 */
   prevDirective?: string;
   /** 参考资料块功能说明行（紧随抬头、在激活条目与角色卡设定之前；缺省＝只有抬头）。 */
@@ -188,6 +191,7 @@ export function blockMessageText(block: LedgerBlockId, contents: LedgerBlockCont
   // 资料块/上下文块：正文原样透传（各自抬头与功能说明由调用方拼——填表侧与推进侧的抬头不同）
   if (block === 'dossier') return String(contents.dossier || '').trim();
   if (block === 'context') return String(contents.context || '').trim();
+  if (block === 'mindBrief') return String(contents.mindBrief || '').trim();
   const body = String(contents.prevDirective || '').trim();
   return body ? '【上轮推进结果】\n\n' + body : '';
 }
@@ -223,6 +227,11 @@ export function expandLedgerItems(
     if (item.block === 'tableData') continue;
     if (item.block === 'context') {
       const body = String(contents.context || '').trim();
+      if (body) out.push({ role: 'system', content: body });
+      continue;
+    }
+    if (item.block === 'mindBrief') {
+      const body = blockMessageText('mindBrief', contents);
       if (body) out.push({ role: 'system', content: body });
       continue;
     }

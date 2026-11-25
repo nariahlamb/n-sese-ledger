@@ -30,7 +30,7 @@
 
 import type { LedgerGroupDef, LedgerOp } from './types';
 import type { BookModel, TableModel } from './book';
-import { findGroup, groupsOf, isStoppedTable, syncV2UpdateConfigs, expandTablePlaceholders } from './book';
+import { findGroup, groupsOf, isStoppedTable, syncV2UpdateConfigs, expandTablePlaceholders, resolveTable, resolveColumn } from './book';
 import { buildValidators, type ColumnValidator } from './constraints';
 import { runFillSql } from './fill-sql';
 import { fillFailureText, type FillProgressEvent } from './fill-notify';
@@ -51,12 +51,24 @@ import type { LedgerRuntime, LedgerWriteTarget } from './runtime';
 
 // ===== 调度 =====
 
+/** 单角色物理隔离心路档案表常量（从常规 Group 1 打包填表中拆出，防角色间泄密）。 */
+export const MIND_PROFILE_TABLE_NAME = '角色心路档案表';
+export const MIND_PROFILE_TABLE_ID = 'sheet_char_mind_profile';
+export const DEFAULT_MIND_FILL_MAX_CHARS = 3;
+
+const PROTAGONIST_TABLE_NAME = '主角信息表';
+const ROMANCE_TARGET_TABLE_NAME = '恋爱对象表';
+const IMPORTANT_ROLE_TABLE_NAME = '重要角色表';
+const ROMANCE_DIARY_TABLE_NAME = '恋爱日记表';
+
 export interface ScheduleGlobals {
   autoUpdateEnabled: boolean;
   autoUpdateFrequency: number;
   autoUpdateThreshold: number;
   skipUpdateFloors: number;
   updateBatchSize: number;
+  /** 单角色物理隔离心路填表开关（默认 true；false 时回归普通 Group 1 打包）。 */
+  isolatedMindFillEnabled?: boolean;
 }
 
 export const DEFAULT_SCHEDULE_GLOBALS: ScheduleGlobals = {
@@ -65,6 +77,7 @@ export const DEFAULT_SCHEDULE_GLOBALS: ScheduleGlobals = {
   autoUpdateThreshold: 5,
   skipUpdateFloors: 0,
   updateBatchSize: 3,
+  isolatedMindFillEnabled: true,
 };
 
 export interface UpdateGroup {
@@ -148,39 +161,64 @@ function manualFillLabel(scopeName: string, bucket: Pick<UpdateGroup, 'groupId' 
   return multiGroup ? `${scopeName} · ${groupLabelOf(bucket)}${batchSuffix}` : `${scopeName}${batchSuffix}`;
 }
 
-/** 计算自动填表计划（纯函数）。schedule: tableId → lastFilledAiFloor。 */
-export function computeUpdatePlan(book: BookModel, chat: any[], schedule: Record<string, number>, globals: ScheduleGlobals): UpdateGroup[] {
+function isMindProfileTable(table: TableModel): boolean {
+  return table.tableId === MIND_PROFILE_TABLE_ID || table.name === MIND_PROFILE_TABLE_NAME;
+}
+
+/** 计算单张表本次到期的待填 AI 楼层下标；未到期或停用则返回 null。 */
+function resolveTableScheduleWindow(
+  table: TableModel,
+  aiIndices: number[],
+  schedule: Record<string, number>,
+  globals: ScheduleGlobals,
+): { rawGroupId: number; threshold: number; frequency: number; skipFloors: number; rawBatch: number; batchSize: number; indices: number[] } | null {
+  const totalAi = aiIndices.length;
+  const cfg = (table.updateConfig || {}) as Record<string, number | undefined>;
+  const rawDepth = Number.isFinite(cfg.contextDepth) ? (cfg.contextDepth as number) : -1;
+  const rawFreq = Number.isFinite(cfg.updateFrequency) ? (cfg.updateFrequency as number) : -1;
+  const rawSkip = Number.isFinite(cfg.skipFloors) ? (cfg.skipFloors as number) : -1;
+  const rawBatch = Number.isFinite(cfg.batchSize) ? (cfg.batchSize as number) : -1;
+  const rawGroupId = Number.isFinite(cfg.groupId) ? Math.trunc(cfg.groupId as number) : -1;
+  const threshold = (rawDepth === -1 || rawDepth === 0) ? globals.autoUpdateThreshold : Math.max(0, rawDepth);
+  const frequency = rawFreq === -1 ? globals.autoUpdateFrequency : rawFreq;
+  const skipFloors = Math.max(0, rawSkip === -1 ? globals.skipUpdateFloors : rawSkip);
+  const lastFilled = Math.max(0, Number(schedule[table.tableId]) || 0);
+  const unrecorded = Math.max(0, (totalAi - skipFloors) - lastFilled);
+  if (frequency <= 0 || threshold <= 0 || unrecorded < frequency) return null;
+  const effective = skipFloors > 0 ? aiIndices.slice(0, -skipFloors) : aiIndices;
+  if (lastFilled >= effective.length) return null;
+  const unupdated = effective.slice(lastFilled);
+  const scope = new Set(effective.slice(-threshold));
+  const indices = unupdated.filter((idx) => scope.has(idx));
+  if (indices.length === 0) return null;
+  const batchSize = rawBatch === -1 || rawBatch <= 0 ? globals.updateBatchSize : rawBatch;
+  return { rawGroupId, threshold, frequency, skipFloors, rawBatch, batchSize, indices };
+}
+
+/** 计算自动填表计划（纯函数）。schedule: tableId → lastFilledAiFloor。
+ *  当开启单角色心路隔离（默认开启）时，自动把「角色心路档案表」从常规 Group 1 打包填表中摘除。 */
+export function computeUpdatePlan(
+  book: BookModel,
+  chat: any[],
+  schedule: Record<string, number>,
+  globals: ScheduleGlobals,
+  opts?: { isolatedMindFillEnabled?: boolean },
+): UpdateGroup[] {
   const aiIndices: number[] = [];
   for (let i = 0; i < chat.length; i++) {
     if (isAnchorCandidate(chat[i])) aiIndices.push(i);
   }
-  const totalAi = aiIndices.length;
+  const isolateMind = (opts?.isolatedMindFillEnabled ?? globals.isolatedMindFillEnabled) !== false;
   const groups = new Map<string, UpdateGroup>();
   for (const table of sortedTables(book)) {
-    const cfg = (table.updateConfig || {}) as Record<string, number | undefined>;
-    const rawDepth = Number.isFinite(cfg.contextDepth) ? (cfg.contextDepth as number) : -1;
-    const rawFreq = Number.isFinite(cfg.updateFrequency) ? (cfg.updateFrequency as number) : -1;
-    const rawSkip = Number.isFinite(cfg.skipFloors) ? (cfg.skipFloors as number) : -1;
-    const rawBatch = Number.isFinite(cfg.batchSize) ? (cfg.batchSize as number) : -1;
-    const rawGroupId = Number.isFinite(cfg.groupId) ? Math.trunc(cfg.groupId as number) : -1;
-    const threshold = (rawDepth === -1 || rawDepth === 0) ? globals.autoUpdateThreshold : Math.max(0, rawDepth);
-    const frequency = rawFreq === -1 ? globals.autoUpdateFrequency : rawFreq;
-    const skipFloors = Math.max(0, rawSkip === -1 ? globals.skipUpdateFloors : rawSkip);
-    const lastFilled = Math.max(0, Number(schedule[table.tableId]) || 0);
-    const unrecorded = Math.max(0, (totalAi - skipFloors) - lastFilled);
-    if (frequency <= 0 || threshold <= 0 || unrecorded < frequency) continue;
-    const effective = skipFloors > 0 ? aiIndices.slice(0, -skipFloors) : aiIndices;
-    if (lastFilled >= effective.length) continue;
-    const unupdated = effective.slice(lastFilled);
-    const scope = new Set(effective.slice(-threshold));
-    const indices = unupdated.filter((idx) => scope.has(idx));
-    if (indices.length === 0) continue;
-    const batchSize = rawBatch === -1 || rawBatch <= 0 ? globals.updateBatchSize : rawBatch;
-    const key = [rawGroupId, threshold, frequency, skipFloors, rawBatch, indices.join(',')].join('|');
+    if (isolateMind && isMindProfileTable(table)) continue;
+    const win = resolveTableScheduleWindow(table, aiIndices, schedule, globals);
+    if (!win) continue;
+    const key = [win.rawGroupId, win.threshold, win.frequency, win.skipFloors, win.rawBatch, win.indices.join(',')].join('|');
     let g = groups.get(key);
     if (!g) {
-      const gid = rawGroupId > 0 ? Math.trunc(rawGroupId) : 1;
-      groups.set(key, (g = { key, tableIds: [], tableNames: [], indices, batchSize, groupId: gid, groupName: String(findGroup(groupsOf(book), gid)?.name || '') }));
+      const gid = win.rawGroupId > 0 ? Math.trunc(win.rawGroupId) : 1;
+      groups.set(key, (g = { key, tableIds: [], tableNames: [], indices: win.indices, batchSize: win.batchSize, groupId: gid, groupName: String(findGroup(groupsOf(book), gid)?.name || '') }));
     }
     g.tableIds.push(table.tableId);
     g.tableNames.push(table.name);
@@ -313,16 +351,22 @@ export function absentProjectionLine(): string {
   return '【已有数据】空';
 }
 
-export function projectTableForPrompt(table: TableModel, ctx: FillPromptContext, opts?: { index?: number; total?: number }): string {
-  const label = tableSectionLabel(table, opts);
-  const parts: string[] = [];
+function buildTableRuleLines(table: TableModel, book?: BookModel): string[] {
   const sd = table.sourceData || ({} as any);
-  const expand = (text: string): string => expandTablePlaceholders(ctx.book, text);
-  if (sd.note) parts.push(`【表说明】\n${expand(sd.note)}`);
+  const expand = (text: string): string => expandTablePlaceholders(book, text);
   const rules: string[] = [];
   if (sd.insertNode) rules.push(`[增行时机] ${expand(sd.insertNode)}`);
   if (sd.updateNode) rules.push(`[更新时机] ${expand(sd.updateNode)}`);
   if (sd.deleteNode) rules.push(`[删行时机] ${expand(sd.deleteNode)}`);
+  return rules;
+}
+
+export function projectTableForPrompt(table: TableModel, ctx: FillPromptContext, opts?: { index?: number; total?: number }): string {
+  const label = tableSectionLabel(table, opts);
+  const parts: string[] = [];
+  const sd = table.sourceData || ({} as any);
+  if (sd.note) parts.push(`【表说明】\n${expandTablePlaceholders(ctx.book, sd.note)}`);
+  const rules = buildTableRuleLines(table, ctx.book);
   if (rules.length) parts.push(`【操作规则】\n${rules.join('\n')}`);
   // 【列约束】段已删（用户定案：DDL 派生约束行几乎只有「文本/必填/唯一」，表说明的 [列定义] 已写清口径，
   // 每表一段纯占 token；约束仍由引擎侧 validateValue 校验 + 违规回注，不靠模型自觉）。
@@ -655,10 +699,281 @@ export function buildFillRequest(
 }
 
 /** 重试时的错误回注句（保留原输出要求，附上次问题清单）。 */
-export function buildFillRetryInstruction(errors: string[]): string {
-  return FILL_OUTPUT_INSTRUCTION
+export function buildFillRetryInstruction(errors: string[], baseInstruction = FILL_OUTPUT_INSTRUCTION): string {
+  return baseInstruction
     + '\n\n【上次输出存在以下问题，请修正后重新输出全部 SQL 语句（不要解释）】\n'
     + errors.slice(0, 12).map((e) => '- ' + e).join('\n');
+}
+
+// ===== 单角色物理隔离心路档案填表（目标筛选 · 隔离拼包 · 越权护栏） =====
+
+function stripDiarySpanTags(text: string): string {
+  return String(text || '').replace(/<\/?span\b[^>]*>/gi, '');
+}
+
+function columnIndexWithFallback(table: TableModel | undefined, name: string, fallback = 1): number {
+  if (!table) return -1;
+  const exact = table.headers.indexOf(name);
+  if (exact >= 0) return exact;
+  return fallback >= 0 && fallback < table.headers.length ? fallback : -1;
+}
+
+function collectColumnValues(table: TableModel | undefined, colName: string): string[] {
+  if (!table) return [];
+  const idx = columnIndexWithFallback(table, colName, 1);
+  if (idx < 0) return [];
+  const out: string[] = [];
+  const rowIds = [...table.rows.keys()].sort((a, b) => a - b);
+  for (const rowId of rowIds) {
+    const val = String(table.rows.get(rowId)?.[idx] ?? '').trim();
+    if (val) out.push(val);
+  }
+  return out;
+}
+
+function countNameOccurrences(text: string, name: string): number {
+  if (!text || !name) return 0;
+  let count = 0;
+  let pos = 0;
+  while (true) {
+    const idx = text.indexOf(name, pos);
+    if (idx < 0) break;
+    count++;
+    pos = idx + name.length;
+  }
+  return count;
+}
+
+/** 筛选本轮单角色心路隔离更新的目标角色（0~5 名，在场且提及 > 仅在场 > 仅提及按频次降序）。 */
+export function selectMindFillTargets(
+  book: BookModel,
+  storyText: string,
+  maxChars: number = DEFAULT_MIND_FILL_MAX_CHARS,
+): string[] {
+  const parsedMax = Math.trunc(Number(maxChars));
+  const limit = Number.isFinite(parsedMax) ? Math.max(0, Math.min(5, parsedMax)) : DEFAULT_MIND_FILL_MAX_CHARS;
+  if (limit === 0) return [];
+
+  const protagonistNames = new Set(collectColumnValues(resolveTable(book, PROTAGONIST_TABLE_NAME), '姓名'));
+  const presentNames = new Set(collectColumnValues(resolveTable(book, PRESENCE_TABLE_NAME), '姓名'));
+
+  const seen = new Set<string>();
+  const orderedNames: string[] = [];
+  for (const tblName of [ROMANCE_TARGET_TABLE_NAME, IMPORTANT_ROLE_TABLE_NAME]) {
+    for (const name of collectColumnValues(resolveTable(book, tblName), '姓名')) {
+      if (protagonistNames.has(name) || seen.has(name)) continue;
+      seen.add(name);
+      orderedNames.push(name);
+    }
+  }
+  if (orderedNames.length === 0) return [];
+
+  const story = String(storyText || '');
+  const ranked: { name: string; tier: number; freq: number; order: number }[] = [];
+  for (let i = 0; i < orderedNames.length; i++) {
+    const name = orderedNames[i];
+    const inPresent = presentNames.has(name);
+    const freq = countNameOccurrences(story, name);
+    if (!inPresent && freq === 0) continue;
+    const tier = inPresent && freq > 0 ? 1 : inPresent ? 2 : 3;
+    ranked.push({ name, tier, freq, order: i });
+  }
+  ranked.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    if (a.tier !== 2 && a.freq !== b.freq) return b.freq - a.freq;
+    return a.order - b.order;
+  });
+  return ranked.slice(0, limit).map((item) => item.name);
+}
+
+function findCharacterRowInTable(table: TableModel | undefined, charName: string, colName = '姓名'): { rowId: number; cells: string[] } | null {
+  if (!table) return null;
+  const idx = columnIndexWithFallback(table, colName, 1);
+  if (idx < 0) return null;
+  const rowIds = [...table.rows.keys()].sort((a, b) => a - b);
+  for (const rowId of rowIds) {
+    const cells = table.rows.get(rowId);
+    if (cells && String(cells[idx] ?? '').trim() === charName) {
+      return { rowId, cells };
+    }
+  }
+  return null;
+}
+
+function collectCharacterDiaries(book: BookModel, charName: string, maxCount = 2): string[] {
+  const diaryTable = resolveTable(book, ROMANCE_DIARY_TABLE_NAME);
+  if (!diaryTable) return [];
+  const writerIdx = columnIndexWithFallback(diaryTable, '写作角色', 1);
+  const relIdx = resolveColumn(diaryTable, '关联角色');
+  const contentIdx = resolveColumn(diaryTable, '日记内容');
+  const timeIdx = resolveColumn(diaryTable, '发生时间');
+  const typeIdx = resolveColumn(diaryTable, '事件类型');
+  if (writerIdx < 0 || contentIdx < 0) return [];
+  const matched: string[] = [];
+  const rowIds = [...diaryTable.rows.keys()].sort((a, b) => a - b);
+  for (const rowId of rowIds) {
+    const cells = diaryTable.rows.get(rowId);
+    if (!cells || String(cells[writerIdx] ?? '').trim() !== charName) continue;
+    const body = stripDiarySpanTags(String(cells[contentIdx] ?? '')).trim();
+    if (!body) continue;
+    const time = timeIdx >= 0 ? String(cells[timeIdx] ?? '').trim() : '';
+    const evType = typeIdx >= 0 ? String(cells[typeIdx] ?? '').trim() : '';
+    const rel = relIdx >= 0 ? String(cells[relIdx] ?? '').trim() : '';
+    const meta = [time, evType, rel ? `关联：${rel}` : ''].filter(Boolean).join(' | ');
+    matched.push(meta ? `[${meta}]\n${body}` : body);
+  }
+  return matched.slice(-Math.max(1, maxCount));
+}
+
+function buildIsolatedMindOutputInstruction(charName: string): string {
+  return [
+    `【输出要求】当前为单角色物理隔离通道，仅维护角色「${charName}」在「${MIND_PROFILE_TABLE_NAME}」中的唯一一行档案，只输出本轮【当前正文】引发的更新或新增：`,
+    `1. 只允许写入「${MIND_PROFILE_TABLE_NAME}」，表名、列名逐字照抄台账；严禁输出针对其他表或其他角色的 SQL。`,
+    `2. 已有行一律使用 UPDATE ${MIND_PROFILE_TABLE_NAME} SET ... WHERE row_id = ?（row_id 见已有数据首列）；投影写「【已有数据】空」时使用 INSERT INTO ${MIND_PROFILE_TABLE_NAME} (姓名, ...) VALUES ('${charName}', ...)。`,
+    `3. 姓名必须严格为「${charName}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权。`,
+    '4. 每条语句一行、以分号结尾；不要输出解释、markdown 代码块，也不要输出 SELECT。',
+    '5. 若该角色本轮心路档案无实质变化，输出空（什么都不写）。',
+  ].join('\n');
+}
+
+/** 构造单角色物理隔离的心路档案填表请求：仅注入该角色自己的基础档、心路现行 1 行与最近 1~2 篇去标签日记，scanText 仅传 charName。 */
+export function buildIsolatedMindFillRequest(
+  book: BookModel,
+  charName: string,
+  ctx: FillPromptContext,
+  settings: { fillSystemPrompt?: string; fillPrompt?: unknown },
+  instructionOverride?: string,
+): FillRequestSpec {
+  const safeName = String(charName || '').trim();
+  const mindTable = resolveTable(book, MIND_PROFILE_TABLE_ID) || resolveTable(book, MIND_PROFILE_TABLE_NAME);
+
+  const dossierSections: string[] = [];
+  // 1. 只读基础档（只允许出现 charName 自己在恋爱对象表/重要角色表的 1 行）
+  const baseParts: string[] = [];
+  for (const tblName of [ROMANCE_TARGET_TABLE_NAME, IMPORTANT_ROLE_TABLE_NAME]) {
+    const tbl = resolveTable(book, tblName);
+    const hit = tbl ? findCharacterRowInTable(tbl, safeName, '姓名') : null;
+    if (tbl && hit) {
+      baseParts.push(`来源表：${tbl.name}\n${tbl.headers.join('|')}\n${rowProjectionLine(hit.cells)}`);
+    }
+  }
+  if (baseParts.length > 0) {
+    dossierSections.push(`【角色基础档案（只读参考，严禁修改）】\n${baseParts.join('\n\n')}`);
+  }
+
+  // 2. 该角色自己的最近 1~2 篇恋爱日记（去 <span> 纯文本）
+  const diaries = collectCharacterDiaries(book, safeName, 2);
+  if (diaries.length > 0) {
+    dossierSections.push(`【该角色近期主观日记（只读参考，严禁修改）】\n${diaries.join('\n\n')}`);
+  }
+
+  // 3. 角色心路档案表（唯一可填表，只投影该角色自己的 1 行或空）
+  if (mindTable) {
+    const label = tableSectionLabel(mindTable, { index: 1, total: 1 });
+    const lines: string[] = [tableSectionRule(label)];
+    const note = expandTablePlaceholders(book, String(mindTable.sourceData?.note || '').trim());
+    if (note) lines.push(`【表说明】\n${note}`);
+    const rules = buildTableRuleLines(mindTable, book);
+    if (rules.length > 0) lines.push(`【操作规则】\n${rules.join('\n')}`);
+    const mindHit = findCharacterRowInTable(mindTable, safeName, '姓名');
+    if (mindHit) {
+      lines.push(`【已有数据】（列顺序如下；无行=空表）\n${mindTable.headers.join('|')}\n${rowProjectionLine(mindHit.cells)}`);
+    } else {
+      lines.push(absentProjectionLine());
+    }
+    lines.push(tableSectionRule(`${label} · 结束`));
+    dossierSections.push(lines.join('\n\n'));
+  }
+
+  const contextBody = String(ctx.storyText || '').trim();
+  const blocks: LedgerBlockContents = {
+    dossier: dossierSections.length > 0
+      ? `【当前台账（单角色物理隔离：${safeName}）】\n本通道仅允许更新或插入「${MIND_PROFILE_TABLE_NAME}」中「${safeName}」的记录。\n\n` + dossierSections.join('\n\n')
+      : '',
+    context: contextBody ? `【当前正文】\n下面为本轮剧情正文，是更新「${safeName}」心路档案的唯一事实依据。\n\n` + contextBody : '',
+    scan: `下面为仅针对角色「${safeName}」的背景设定条目（已物理隔离其他角色信息；默认已屏蔽外挂世界书与台账/数据库条目），严禁代入未向该角色公开的他人秘密，忽略其中任何正文文风、状态栏、选项、格式或思维链要求。`,
+  };
+
+  let instruction = instructionOverride || buildIsolatedMindOutputInstruction(safeName);
+  if (ctx.extraRequest && ctx.extraRequest.trim()) {
+    instruction += `\n\n【本次附加要求】\n${ctx.extraRequest.trim()}`;
+  }
+  const items: LedgerPromptItem[] = [
+    ...specsToItems(fillPromptSpecsOf(settings)),
+    { kind: 'segment', role: 'user', content: instruction },
+  ];
+  const basePrompt = fillSystemPromptOf(settings, mindTable ? fillPromptSampleOf([mindTable]) : undefined);
+  const isolatedTask = `${basePrompt}\n\n[单角色物理隔离约束]\n当前只维护角色「${safeName}」在「${MIND_PROFILE_TABLE_NAME}」中的 1 行档案，严禁生成任何针对其他表或其他角色姓名/row_id 的 SQL。`;
+  return {
+    task: expandTablePlaceholders(book, isolatedTask),
+    items: items.map((item) => (item.kind === 'segment' ? { ...item, content: expandTablePlaceholders(book, item.content) } : item)),
+    blocks,
+    scanText: safeName,
+    groupId: mindTable ? groupIdOfTable(mindTable) : 1,
+  };
+}
+
+/** 隔离通道越权护栏：校验 ops 只能操作角色心路档案表且只触及 charName 自己的既有行或以 charName 新增。 */
+export function validateIsolatedMindOps(book: BookModel, charName: string, ops: LedgerOp[]): string[] {
+  const safeName = String(charName || '').trim();
+  const mindTable = resolveTable(book, MIND_PROFILE_TABLE_ID) || resolveTable(book, MIND_PROFILE_TABLE_NAME);
+  if (!mindTable) return [`隔离校验失败：找不到「${MIND_PROFILE_TABLE_NAME}」`];
+  const nameColIdx = columnIndexWithFallback(mindTable, '姓名', 1);
+  const allowedRowIds = new Set<number>();
+  if (nameColIdx >= 0) {
+    for (const [rowId, cells] of mindTable.rows.entries()) {
+      if (String(cells?.[nameColIdx] ?? '').trim() === safeName) allowedRowIds.add(rowId);
+    }
+  }
+  const errors: string[] = [];
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    const seq = i + 1;
+    if (!('table' in op) || (op.table !== mindTable.tableId && op.table !== mindTable.name)) {
+      errors.push(`第 ${seq} 条操作越权：隔离通道只允许操作「${MIND_PROFILE_TABLE_NAME}」`);
+      continue;
+    }
+    if (op.kind === 'row_insert') {
+      const targetName = String(op.row?.['姓名'] ?? '').trim();
+      if (targetName !== safeName) {
+        errors.push(`第 ${seq} 条操作越权：INSERT 姓名「${targetName || '空'}」必须为当前角色「${safeName}」`);
+      }
+      continue;
+    }
+    if (op.kind === 'cell') {
+      if (!allowedRowIds.has(op.rowId)) {
+        errors.push(`第 ${seq} 条操作越权：UPDATE row_id=${op.rowId} 不属于「${safeName}」的既有行`);
+        continue;
+      }
+      if (op.column === '姓名' && String(op.value ?? '').trim() !== safeName) {
+        errors.push(`第 ${seq} 条操作越权：禁止把「${safeName}」的姓名修改为「${op.value}」`);
+      }
+      continue;
+    }
+    if (op.kind === 'row_upsert') {
+      if (!allowedRowIds.has(op.rowId)) {
+        errors.push(`第 ${seq} 条操作越权：UPSERT row_id=${op.rowId} 不属于「${safeName}」的既有行`);
+        continue;
+      }
+      if (nameColIdx >= 0 && op.cells && op.cells[nameColIdx] !== undefined && String(op.cells[nameColIdx] ?? '').trim() !== safeName) {
+        errors.push(`第 ${seq} 条操作越权：UPSERT 姓名必须为「${safeName}」`);
+      }
+      continue;
+    }
+    errors.push(`第 ${seq} 条操作越权：隔离通道禁止执行 ${op.kind} 操作`);
+  }
+  return errors;
+}
+
+/** 隔离通道专用解析与护栏校验：一旦出现越权操作立即清零 ops 并转为错误，确保越权行为绝不落账且触发重试。 */
+export function parseIsolatedMindFillOutput(book: BookModel, charName: string, raw: string): ValidationOutcome {
+  const outcome = parseFillOutput(book, raw);
+  if (outcome.ops.length === 0) return outcome;
+  const scopeErrors = validateIsolatedMindOps(book, charName, outcome.ops);
+  if (scopeErrors.length > 0) {
+    return { ops: [], errors: [...outcome.errors, ...scopeErrors], partial: false };
+  }
+  return outcome;
 }
 
 /** 调度状态推进到指定 AI 楼序（落点已按锚点解析成当前楼层号；**不再**用 raw index 反查）。 */
@@ -700,6 +1015,10 @@ export interface FillerSettings {
   fillPrompt?: unknown;
   /** 校验失败重试次数上限（含首次；缺省 3）。填表与建表向导共用。 */
   fillMaxAttempts?: number;
+  /** 单角色物理隔离心路填表开关（默认开启；仅显式 false 关闭）。 */
+  isolatedMindFillEnabled?: boolean;
+  /** 单轮最多隔离更新几个角色的心路档案（0~5，默认 3；0 = 跳过）。 */
+  isolatedMindFillMaxChars?: number;
 }
 
 export interface FillerDeps {
@@ -744,6 +1063,20 @@ export function resolveFillMaxAttempts(settings?: Pick<FillerSettings, 'fillMaxA
   return Math.min(n, FILL_MAX_ATTEMPTS_LIMIT);
 }
 
+/** 单角色物理隔离心路填表是否开启：默认开启，仅显式 false 时关闭。 */
+export function isIsolatedMindFillEnabled(settings?: Pick<FillerSettings, 'isolatedMindFillEnabled'> | null): boolean {
+  return settings?.isolatedMindFillEnabled !== false;
+}
+
+/** 单轮隔离心路填表的最大角色数解析（0~5，默认 3；0 = 跳过）。 */
+export function resolveMindFillMaxChars(settings?: Pick<FillerSettings, 'isolatedMindFillMaxChars'> | null): number {
+  const raw = settings?.isolatedMindFillMaxChars;
+  if (raw === undefined || raw === null || raw === ('' as any)) return DEFAULT_MIND_FILL_MAX_CHARS;
+  const n = Math.trunc(Number(raw));
+  if (!Number.isFinite(n)) return DEFAULT_MIND_FILL_MAX_CHARS;
+  return Math.max(0, Math.min(5, n));
+}
+
 /** 全局调度参数解析（设置覆盖 > 内置默认；缺省值语义见 DEFAULT_SCHEDULE_GLOBALS）。 */
 export function resolveScheduleGlobals(settings: FillerSettings): ScheduleGlobals {
   const g = { ...DEFAULT_SCHEDULE_GLOBALS };
@@ -752,6 +1085,7 @@ export function resolveScheduleGlobals(settings: FillerSettings): ScheduleGlobal
   if (Number.isFinite(settings.autoUpdateThreshold) && (settings.autoUpdateThreshold as number) > 0) g.autoUpdateThreshold = settings.autoUpdateThreshold as number;
   if (Number.isFinite(settings.skipUpdateFloors) && (settings.skipUpdateFloors as number) >= 0) g.skipUpdateFloors = settings.skipUpdateFloors as number;
   if (Number.isFinite(settings.updateBatchSize) && (settings.updateBatchSize as number) > 0) g.updateBatchSize = settings.updateBatchSize as number;
+  g.isolatedMindFillEnabled = isIsolatedMindFillEnabled(settings);
   return g;
 }
 
@@ -836,12 +1170,17 @@ function withExtraRequest(text: string, extra: string | undefined): string {
 async function runFillAttempts(
   deps: FillerDeps,
   book: BookModel,
-  group: UpdateGroup,
+  group: Pick<UpdateGroup, 'key' | 'tableIds' | 'tableNames' | 'groupId'>,
   ctx: FillPromptContext,
   settings: FillerSettings,
   signal: AbortSignal | undefined,
   label: string,
   onRequestError: (message: string) => void,
+  hooks?: {
+    buildSpec?: () => FillRequestSpec;
+    parseOutput?: (raw: string) => ValidationOutcome;
+    baseInstruction?: string;
+  },
 ): Promise<ValidationOutcome & { raw: string; aborted?: boolean; requestFailed?: boolean }> {
   let outcome: ValidationOutcome = { ops: [], errors: [], partial: false };
   let lastRaw = '';
@@ -858,8 +1197,8 @@ async function runFillAttempts(
       let raw = '';
       try {
         const spec: FillRequestSpec = baseSpec
-          ? withFillInstruction(baseSpec, withExtraRequest(buildFillRetryInstruction(outcome.errors), ctx.extraRequest))
-          : buildFillRequest(book, group, ctx, settings);
+          ? withFillInstruction(baseSpec, withExtraRequest(buildFillRetryInstruction(outcome.errors, hooks?.baseInstruction), ctx.extraRequest))
+          : (hooks?.buildSpec ? hooks.buildSpec() : buildFillRequest(book, group as UpdateGroup, ctx, settings));
         if (!baseSpec) baseSpec = spec;
         raw = await deps.requestFill(spec, { signal });
       } catch (e) {
@@ -878,7 +1217,7 @@ async function runFillAttempts(
         break;
       }
       lastRaw = String(raw || '');
-      outcome = parseFillOutput(book, raw);
+      outcome = hooks?.parseOutput ? hooks.parseOutput(raw) : parseFillOutput(book, raw);
       if (outcome.errors.length === 0) break;
       // 每次尝试的违规明细进运行日志（toast 只留最终汇总；这里的清单与原始输出才是排查证据）
       deps.report?.({
@@ -969,7 +1308,19 @@ async function runScheduledFillCore(deps: FillerDeps, opts: { signal?: AbortSign
   /** 最后一次拿到的原始 AI 输出（失败汇总时一并进日志，供展开研究）。 */
   let lastRaw = '';
   const plan = computeUpdatePlan(book, chat, schedule, globals);
-  if (plan.length === 0) {
+  const mindTable = isIsolatedMindFillEnabled(settings) && resolveMindFillMaxChars(settings) > 0
+    ? (resolveTable(book, MIND_PROFILE_TABLE_ID) || resolveTable(book, MIND_PROFILE_TABLE_NAME))
+    : undefined;
+  let mindIndices: number[] = [];
+  if (mindTable && !isStoppedTable(mindTable)) {
+    const aiIndices: number[] = [];
+    for (let i = 0; i < chat.length; i++) {
+      if (isAnchorCandidate(chat[i])) aiIndices.push(i);
+    }
+    const win = resolveTableScheduleWindow(mindTable, aiIndices, schedule, globals);
+    if (win) mindIndices = win.indices;
+  }
+  if (plan.length === 0 && mindIndices.length === 0) {
     summary.skipped = true;
     summary.reason = '无到期分组';
     return summary;
@@ -1079,6 +1430,106 @@ async function runScheduledFillCore(deps: FillerDeps, opts: { signal?: AbortSign
         } catch (_e) { /* 收尾 finally 重试 */ }
       }
       if (summary.skipped || opts.signal?.aborted) break;
+    }
+
+    // 常规组全部落账之后：按单角色物理隔离通道并发执行「角色心路档案表」更新；
+    // 单角色失败仅报 warn，绝不阻塞常规组落账。保持 book 引用一致与单写者串行 commitOps。
+    if (!summary.skipped && !opts.signal?.aborted && mindTable && mindIndices.length > 0 && deps.runtime.book() === book) {
+      const mindTarget = pinGroupTarget(chat, mindIndices);
+      const mindStoryText = storyTextOfIndices(chat, mindIndices);
+      const maxChars = resolveMindFillMaxChars(settings);
+      const targets = mindTarget && mindStoryText.trim()
+        ? selectMindFillTargets(book, mindStoryText, maxChars)
+        : [];
+      if (mindTarget && targets.length > 0) {
+        const mindCtx: FillPromptContext = { storyText: mindStoryText, keywordText: mindStoryText };
+        const mindGroupId = groupIdOfTable(mindTable);
+        const settledMind = await Promise.allSettled(targets.map(async (charName) => {
+          const label = `心路隔离 · ${charName}`;
+          const pseudoGroup: Pick<UpdateGroup, 'key' | 'tableIds' | 'tableNames' | 'groupId'> = {
+            key: `isolated-mind|${charName}`,
+            tableIds: [mindTable.tableId],
+            tableNames: [mindTable.name],
+            groupId: mindGroupId,
+          };
+          deps.report?.({ level: 'info', message: `开始心路隔离填表：${charName}（${mindIndices.length} 层，落点楼${mindTarget.target.aiFloor}）` });
+          let requestErrMsg = '';
+          const outcome = await runFillAttempts(
+            deps,
+            book,
+            pseudoGroup,
+            mindCtx,
+            settings,
+            opts.signal,
+            label,
+            (msg) => { requestErrMsg = msg; },
+            {
+              buildSpec: () => buildIsolatedMindFillRequest(book, charName, mindCtx, settings),
+              parseOutput: (raw) => parseIsolatedMindFillOutput(book, charName, raw),
+              baseInstruction: buildIsolatedMindOutputInstruction(charName),
+            },
+          );
+          return { charName, outcome, requestErrMsg };
+        }));
+
+        if (opts.signal?.aborted) {
+          summary.skipped = true;
+          summary.reason = '已终止（用户点击进度通知终止）';
+        } else if (deps.runtime.book() !== book) {
+          summary.skipped = true;
+          summary.reason = '账本在填表期间被替换（回滚/切模板/导入/切聊天），本批结果已作废，请重跑';
+        } else {
+          const { target: resolvedMind, error: mindTargetError } = resolvePinnedFillTarget(deps.getChat(), mindTarget);
+          if (!resolvedMind) {
+            deps.report?.({ level: 'warn', message: `心路隔离填表结果作废：${mindTargetError}` });
+          } else {
+            let anyMindSucceeded = false;
+            let mindCommitFailed = false;
+            for (let i = 0; i < settledMind.length; i++) {
+              const res = settledMind[i];
+              const charName = targets[i];
+              if (res.status === 'rejected') {
+                const msg = res.reason instanceof Error ? res.reason.message : String(res.reason);
+                deps.report?.({ level: 'warn', message: `心路隔离填表失败（${charName}）：${msg}` });
+                continue;
+              }
+              const { outcome, requestErrMsg } = res.value;
+              if (outcome.aborted || opts.signal?.aborted) continue;
+              if (outcome.requestFailed || outcome.errors.length > 0) {
+                const reason = requestErrMsg || outcome.errors[0] || '校验未通过';
+                deps.report?.({
+                  level: 'warn',
+                  message: `心路隔离填表未落账（${charName}）：${reason}`,
+                  detail: outcome.errors.join('\n') || undefined,
+                  raw: outcome.raw || undefined,
+                });
+                continue;
+              }
+              if (outcome.ops.length > 0) {
+                const commit = deps.runtime.commitOps('ai', outcome.ops, { target: resolvedMind });
+                if (!commit.ok) {
+                  mindCommitFailed = true;
+                  deps.report?.({
+                    level: 'warn',
+                    message: `心路隔离落账失败（${charName}）`,
+                    detail: commit.errors.join('\n') || '写入失败',
+                    raw: outcome.raw || undefined,
+                  });
+                  continue;
+                }
+                summary.filledOps += outcome.ops.length;
+                dataMayHaveChanged = true;
+                deps.report?.({ level: 'info', message: `心路隔离落账：${charName} × ${outcome.ops.length} 条操作` });
+              }
+              anyMindSucceeded = true;
+            }
+            if (anyMindSucceeded && !mindCommitFailed) {
+              schedule = advanceScheduleToFloor(schedule, { tableIds: [mindTable.tableId] }, resolvedMind.aiFloor);
+              scheduleDirty = true;
+            }
+          }
+        }
+      }
     }
   } finally {
     // 兜底：本桶水位写失败（或收尾前被终止）时再试一次；先落数据再写水位。

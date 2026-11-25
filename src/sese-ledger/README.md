@@ -21,7 +21,7 @@ manifest.json (loading_order: 210)
 
 - `core/`：账本存储、填表 SQL、剧情推进、投影、时光机、纪要合并、迁移
 - `settings/panel/`：工作台九页签（数据、表格、填表、推进、时光机、纪要合并、迁移、日志、设置）
-- `assets/`：`standard-template.json`（18 表标准模板）、`plot-preset-magic-recall.json`、`plot-preset-pure-recall.json`
+- `assets/`：`standard-template.json`（19 表标准模板）、`plot-preset-magic-recall.json`、`plot-preset-pure-recall.json`
 
 ## 编译期依赖（同仓内嵌，不是同级目录）
 

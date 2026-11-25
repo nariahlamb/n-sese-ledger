@@ -2,7 +2,14 @@
 import { esc, el, downloadJsonFile, pickJsonFile, confirmDialog } from './shared';
 import { isDarkTheme, isDriverEnabled, isProgressPersistEnabled } from '../../core/settings-store';
 import { groupsOf, isStoppedGroup } from '../../core/book';
-import { DEFAULT_FILL_MAX_ATTEMPTS, FILL_MAX_ATTEMPTS_LIMIT, resolveFillMaxAttempts } from '../../core/scribe';
+import {
+  DEFAULT_FILL_MAX_ATTEMPTS,
+  DEFAULT_MIND_FILL_MAX_CHARS,
+  FILL_MAX_ATTEMPTS_LIMIT,
+  isIsolatedMindFillEnabled,
+  resolveFillMaxAttempts,
+  resolveMindFillMaxChars,
+} from '../../core/scribe';
 import { summaryWarning, summaryWarnThresholdOf } from '../../core/summary-warning';
 import type { TabCtx } from './shell';
 
@@ -18,7 +25,8 @@ export function renderSettingsTab(ctx: TabCtx, pane: HTMLElement): void {
     <div class="slw-row"><label>自动填表</label><span class="slw-switch ${s.autoFillEnabled !== false ? 'on' : ''}" id="slw-s-auto"></span><span class="slw-muted">AI 回复落楼后按分组频率自动填表</span></div>
     <div class="slw-row"><label>剧情推进</label><span class="slw-switch ${isDriverEnabled(s) ? 'on' : ''}" id="slw-s-driver"></span><span class="slw-muted">默认开；关闭后不再拦截用户发送做规划改写（三入口 + 防回环），并撤除聊天显示正则</span></div>
     <div class="slw-row"><label>填表/推进持久化</label><span class="slw-switch ${isProgressPersistEnabled(s) ? 'on' : ''}" id="slw-s-progress-persist"></span><span class="slw-muted">默认关；关闭后填表/推进进度通知显示 3 秒即自动隐去（错误告警仍常驻；工作台顶部「填表进行中」横幅不受影响）</span></div>
-    <div class="slw-row"><label>悬浮按钮</label><span class="slw-switch ${s.showLauncher !== false ? 'on' : ''}" id="slw-s-launcher"></span><span class="slw-muted">关闭后仍可从酒馆扩展菜单（魔杖图标）打开工作台</span></div>`);
+    <div class="slw-row"><label>悬浮按钮</label><span class="slw-switch ${s.showLauncher !== false ? 'on' : ''}" id="slw-s-launcher"></span><span class="slw-muted">关闭后仍可从酒馆扩展菜单（魔杖图标）打开工作台</span></div>
+    <div class="slw-row"><label>心路隔离填表</label><span class="slw-switch ${isIsolatedMindFillEnabled(s) ? 'on' : ''}" id="slw-s-isolated-mind"></span><span class="slw-muted">默认开；将「角色心路档案表」从常规分组拆出，按单角色物理隔离独立并发更新（防角色间泄密）</span></div>`);
   pane.appendChild(switchCard);
   switchCard.querySelector('#slw-s-theme-light')!.addEventListener('click', async (e) => {
     const next = !(e.target as HTMLElement).classList.contains('on');
@@ -47,6 +55,11 @@ export function renderSettingsTab(ctx: TabCtx, pane: HTMLElement): void {
     const next = !(e.target as HTMLElement).classList.contains('on');
     (e.target as HTMLElement).classList.toggle('on', next);
     await deps.settings.update({ progressPersist: next });
+  });
+  switchCard.querySelector('#slw-s-isolated-mind')!.addEventListener('click', async (e) => {
+    const next = !(e.target as HTMLElement).classList.contains('on');
+    (e.target as HTMLElement).classList.toggle('on', next);
+    await deps.settings.update({ isolatedMindFillEnabled: next });
   });
 
   // ── 纪要维护（数量提醒；合并使用填表 API） ──
@@ -320,7 +333,8 @@ export function renderSettingsTab(ctx: TabCtx, pane: HTMLElement): void {
     <h3>高级调度参数</h3>
     <div class="slw-row"><label>触达层数</label><input type="number" id="slw-s-threshold" value="${Number(s.autoUpdateThreshold) > 0 ? s.autoUpdateThreshold : 5}" min="1" style="width:64px"><span class="slw-muted">待记录楼须与最近 N 层 AI 回复相交才触发（全局，分组频率之外仅存的调度参数）</span></div>
     <div class="slw-row"><label>跳过楼层</label><input type="number" id="slw-s-skip" value="${Number(s.skipUpdateFloors) >= 0 ? s.skipUpdateFloors : 0}" min="0" style="width:64px"><span class="slw-muted">最近 N 层 AI 回复不参与自动填表</span></div>
-    <div class="slw-row"><label>重试次数</label><input type="number" id="slw-s-retry" value="${resolveFillMaxAttempts(s)}" min="1" max="${FILL_MAX_ATTEMPTS_LIMIT}" style="width:64px"><span class="slw-muted">AI 输出未通过校验时最多尝试 N 次（含首次，默认 ${DEFAULT_FILL_MAX_ATTEMPTS}）；填表与建表向导共用，剧情推进的重试在各推进预设内单独设置</span></div>`);
+    <div class="slw-row"><label>重试次数</label><input type="number" id="slw-s-retry" value="${resolveFillMaxAttempts(s)}" min="1" max="${FILL_MAX_ATTEMPTS_LIMIT}" style="width:64px"><span class="slw-muted">AI 输出未通过校验时最多尝试 N 次（含首次，默认 ${DEFAULT_FILL_MAX_ATTEMPTS}）；填表与建表向导共用，剧情推进的重试在各推进预设内单独设置</span></div>
+    <div class="slw-row"><label>心路隔离上限</label><input type="number" id="slw-s-mind-max-chars" value="${resolveMindFillMaxChars(s)}" min="0" max="5" style="width:64px"><span class="slw-muted">每轮最多隔离更新几位核心角色的心路档案（0~5，默认 ${DEFAULT_MIND_FILL_MAX_CHARS}；0 = 跳过隔离更新）</span></div>`);
   pane.appendChild(advCard);
   advCard.querySelector('#slw-s-threshold')!.addEventListener('change', async (e) => {
     const v = Math.max(1, Math.trunc(Number((e.target as HTMLInputElement).value) || 5));
@@ -335,6 +349,12 @@ export function renderSettingsTab(ctx: TabCtx, pane: HTMLElement): void {
     const v = resolveFillMaxAttempts({ fillMaxAttempts: Number(input.value) });
     input.value = String(v);
     await deps.settings.update({ fillMaxAttempts: v });
+  });
+  advCard.querySelector('#slw-s-mind-max-chars')!.addEventListener('change', async (e) => {
+    const input = e.target as HTMLInputElement;
+    const v = resolveMindFillMaxChars({ isolatedMindFillMaxChars: Number(input.value) });
+    input.value = String(v);
+    await deps.settings.update({ isolatedMindFillMaxChars: v });
   });
   // 引擎诊断卡已并入「日志」页（诊断摘要）：同一信息不摆两处。
 }

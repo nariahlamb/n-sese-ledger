@@ -64,6 +64,10 @@ export interface LedgerSettings {
   fillSystemPrompt?: string;
   /** 填表内容项清单（段 + 固定块混排；缺省 = 三块默认顺序）。 */
   fillPrompt?: LedgerPromptItemSpec[];
+  /** 单角色物理隔离心路填表开关（默认开启；仅显式 false 关闭）。 */
+  isolatedMindFillEnabled?: boolean;
+  /** 单轮最多隔离更新几个角色的心路档案（0~5，默认 3；0 = 跳过）。 */
+  isolatedMindFillMaxChars?: number;
 }
 
 /** 剧情推进是否开启：未设置视为开启，只有显式 false 才关闭。 */

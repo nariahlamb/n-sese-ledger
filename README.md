@@ -4,7 +4,7 @@
 > 1. **每次修改本仓库代码、标准表结构、推进预设或外部接口后，必须同步更新本 README**（至少更新「当前改造状态与未完成项」「表结构与世界书契约」及文末「改造记录」），严禁只改代码不留记录。
 > 2. **先读再改，按固定顺序交付（长期明确授权）**：① 改代码/文档 → ② 改到 `src/` 时刷新 `source-files.sha256.json` 并执行 `npm run build` 重建 `dist/index.js` → ③ 递增四处版本号（**仅功能/界面/修复改动**；纯文档同步不递增）并更新本 README → ④ 运行 `npm run build`、`npm test`、`npm run check` 全绿，确认 `git diff -- dist` 无异常 → ⑤ `git add <明确列出的文件>`、`git commit`、`git push origin main`（无需逐次询问，也不要打包 zip，详见 [AGENTS.md](AGENTS.md)）。
 > 3. **在 Antigravity 等独立客户端打开本仓时**：`src/unified-statusbar/core/` 是内嵌共享件副本，其中 `env.ts` 含台账 Toast 前缀定制、`external-projection-client.ts` 为伴生仓专用，**禁止整目录盲目覆盖**；同步共享件须逐文件比对并刷新 SHA-256 清单（见 [src/README.md](src/README.md)）。
-> 4. **做角色卡联动必看**：第 3 节完整列出了台账默认 18 张表的表名/分组/列名、`SeseLedger-*` 世界书投影槽位、填表与剧情推进的宿主字段契约，写卡时直接对照，无需猜字段名。
+> 4. **做角色卡联动必看**：第 3 节完整列出了台账默认 19 张表的表名/分组/列名、`SeseLedger-*` 世界书投影槽位、填表与剧情推进的宿主字段契约，写卡时直接对照，无需猜字段名。
 > 5. **设计基准**：排障与重构一律以本仓库既有契约与 TT/ST 宿主实态为准，不套用其他外部数据库插件的实现方式。
 
 ---
@@ -12,7 +12,7 @@
 ## 1. 定位与运行依赖
 
 - **扩展名称**：`瑟瑟台账`（`manifest.json` `loading_order: 210`，在 `n-sese-unified-statusbar` `200` 之后、`n-sese-phone` `220` 之前装载）
-- **当前版本**：`0.1.0-alpha.12`（当前 HEAD `dd63837`，最初基于 `2f3a727` 推进；功能性改动递增版本并推仓供 TT 拉取实测，纯文档同步不递增版本但记 `(docs)` Changelog）
+- **当前版本**：`0.1.0-alpha.13`（在 `dd63837` 基础上推进；功能性改动递增版本并推仓供 TT 拉取实测，纯文档同步不递增版本但记 `(docs)` Changelog）
 - **宿主要求**：`manifest.json` 声明 `minimum_client_version: 1.13.0`；装载前由 [runtime/extension.js](runtime/extension.js) 做能力检查——`SillyTavern.getContext` 与 `CHAT_CHANGED`、酒馆 jQuery、`toastr`，以及 `TavernHelper` 的 `generateRaw` / `injectPrompts` / `getWorldbook` / `replaceWorldbook` / `getCharWorldbookNames` / `getWorldbookNames`，缺项时在扩展设置区显示「安装状态」面板与中文缺项提示。台账 `template: false`（不注入状态栏壳）、`blockDatabase: true`（检测到另一套数据库插件时拒绝混装，提示停用，不删数据）。
 - **宿主设置键**：`extensionSettings.sese_ledger_v1`（详见 [core/settings-store.ts](src/sese-ledger/core/settings-store.ts)）
 - **协同关系**：
@@ -23,7 +23,7 @@
 
 ---
 
-## 2. 当前改造状态与未完成项（截至 2026-11-22）
+## 2. 当前改造状态与未完成项（截至 2026-11-26，当前 `0.1.0-alpha.13`）
 
 | 模块 / 阶段 | 当前状态 | 关键证据与说明 |
 |---|---|---|
@@ -39,7 +39,8 @@
 | **魔改推进与状态栏后台演化 v2 联动** | ✅ 代码+单测完成 | [statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) 升级消费 v2 `eventPool`（兼容 v1）并产出 `<statusbar_events>`（宁缺毋滥/限量/防撞车/`<world_ack>` 回执）；[director.ts](src/sese-ledger/core/director.ts) 解除预设名硬编码（`statusbarBridge` + `{{world_cue}}` 识别）并解析 `sl_world_ack`；[host-ai.ts](src/sese-ledger/core/host-ai.ts) 委派时暂停 `UBS-世界演化-世界动态` 防重喂；[director-runtime.ts](src/sese-ledger/core/director-runtime.ts) 三入口落楼写回 `sl_world_ack`；[plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json)/[plot-tab.ts](src/sese-ledger/settings/panel/plot-tab.ts)/[plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts)/[index.ts](src/sese-ledger/index.ts) 补齐 `<world_cue>` 展示、极简桥开关与 `isDriverWorldBridgeActive`（`v0.1.0-alpha.10`） |
 | **剧情推进面板重制与 AI 请求管线同步（`0.1.0-alpha.11`）** | ✅ 代码+单测完成 | [plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts) 重制为奶油手账（日间网格纸/樱粉）+ TokyoNight Storm（夜间）双主题，支持 `NSFW` 标记、`<match>` 召回依据、`<world_cue>` 后台切入与 `sl_world_ack` 选中/压住提示；同步内嵌共享件 [ai-request-pipeline.ts](src/unified-statusbar/core/ai-request-pipeline.ts) 的 `buildStandardPromptMiddle` 内联直传；新增 [tests/plot-regex-panel.test.mjs](tests/plot-regex-panel.test.mjs) |
 | **思考链泄漏加固与魔改预设保底（`0.1.0-alpha.12`）** | ✅ 代码+单测完成 | [director.ts](src/sese-ledger/core/director.ts) 的 `extractTag` 先用栈式 `stripContextTags` 剔块、再切除孤儿 `</thinking>` / `</think>` 后才配对目标闭标签（防 `<thinking>` 内顺嘴提及未闭合标签把大段推理吞进 `<recall>` / `<world_cue>`），面板 `tag()` 同步；`assembleFinalDirective` 过滤 `<world_cue>` 占位空词；[plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json) 恢复「至少 25 条 AM 保底（不足全召回）」；扩充 `director-p4.test.mjs` / `plot-regex-panel.test.mjs` |
-| **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **99 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表、世界书净化与魔改推进按需挑选事件闭环待真机验证 |
+| **角色心路档案表、物理隔离填表与 `<radar>` 推进（`0.1.0-alpha.13`）** | ✅ 代码+单测完成 | [standard-template.json](src/sese-ledger/assets/standard-template.json) 升级为 19 表：放宽 `恋爱日记表` 准入到重要角色表并新增 `角色心路档案表`（`sheet_char_mind_profile`，7 列，`readMode: 'none'`，`worldbook.enabled: false`）；[scribe.ts](src/sese-ledger/core/scribe.ts) 新增在场优先单角色物理隔离填表通道（`selectMindFillTargets` / `buildIsolatedMindFillRequest` / `validateIsolatedMindOps` / 单写者串行落账）及设置页开关与上限（默认开、上限 3 人）；[director.ts](src/sese-ledger/core/director.ts) / [director-runtime.ts](src/sese-ledger/core/director-runtime.ts) / [ai-request.ts](src/sese-ledger/core/ai-request.ts) / [plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json) 接入 `mindBrief` 切片块、双向防全知 / `<EQUIV_BAN>` / `Pool_1 ≻ Pool_2` 与按需 `<radar>` 四向错位标签；新增 [tests/mind-profile-pipeline.test.mjs](tests/mind-profile-pipeline.test.mjs) |
+| **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **105 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表、单角色心路隔离填表、`<radar>` 四向错位与魔改推进事件闭环待真机验证 |
 
 ---
 
@@ -47,7 +48,7 @@
 
 ## 3. 角色卡开发必读：表结构、世界书与推进契约
 
-### 3.1 默认标准模板全表速查（18 张表）
+### 3.1 默认标准模板全表速查（19 张表）
 
 来源于 [standard-template.json](src/sese-ledger/assets/standard-template.json)（分组 `1=角色组`，`2=基础组`，`3=不更新组`）。写角色卡内嵌设定、MVU 状态或扩展读表查询时，表名与列名以此为准：
 
@@ -63,6 +64,7 @@
 | `group 1` | `在场角色表` | `姓名`, `当前状态`, `内心想法`, `下一步打算`, `当前穿搭`, `上装`, `下装`, `内衣/内裤`, `袜子`, `鞋子`, `饰品`, `情绪` |
 | `group 1` | `即时生理反应表` | `姓名`, `胸部`, `下体`, `口穴`, `菊穴`, `其他部位` |
 | `group 1` | `恋爱日记表` | `写作角色`, `关联角色`, `日记内容`, `发生时间`, `事件类型` |
+| `group 1` | `角色心路档案表` | `姓名`, `人格底色与筹码`, `已知事实与盲点`, `四向关系认知`, `个人进度与打算`, `核心纠结与情绪惯性`, `蝴蝶效应留痕` |
 | `group 2` | `全局数据表` | `当前详细地点`, `上轮场景时间`, `经过的时间`, `当前时间`, `是否色色` |
 | `group 2` | `备忘录` | `备忘标题`, `类型`, `相关角色`, `详细内容`, `当前状态`, `记录时间`, `约定时间`, `后续结果` |
 | `group 2` | `物品表` | `物品名称`, `类型`, `数量`, `描述` |
@@ -92,8 +94,10 @@
    - 异步退出宿主事件栈并核验 `chat[id]` 已落定为非空 AI 楼层后再同步楼层锚点（[floor-scope.ts](src/sese-ledger/core/floor-scope.ts)）与计算更新计划；
    - 填表上下文仅取到期 AI 楼层正文，经过状态栏同款 `stripWithContextConfig`（配置在状态栏「上下文标签剥离」）剥除 `<thinking>`/`<options>`/`<orange>`/`<UpdateVariable>` 等非正文块后注入 `【当前正文】`；
    - `batchSize` 按批由旧到新并发请求组，落账并推进水位后继续下一批；上一轮未结束时新回复触发 `pendingAutoFill` 排队补查。
+   - 启用「心路隔离填表」（默认开，上限 3 人）时，`角色心路档案表` 自动脱离 `group 1` 打包请求，改为在常规组落账后按「在场且提及 ＞ 在场 ＞ 提及频次」选人发起单角色物理隔离请求（只附本人基础档案、本人近期去标签日记与本人心路行，`scanText` 仅传本人姓名，越权改写他人会被拦截）。
 2. **剧情推进与用户楼字段**（[director.ts](src/sese-ledger/core/director.ts) & [director-runtime.ts](src/sese-ledger/core/director-runtime.ts)）：
-   - 规划写入用户消息的字段：`mes`（聚合后最终指令）、`sl_plot`（最终指令真源）、`sl_plot_tasks`（各子任务原始输出，含 `<recall>`/`<soul>`/`<chaos>`/`<world_cue>`/`<spot>`）、`sl_world_ack`（隐藏事件池回执，供状态栏确认/冷却且不进正文）、`_sl_processed`（防重放）。
+   - 规划写入用户消息的字段：`mes`（聚合后最终指令）、`sl_plot`（最终指令真源）、`sl_plot_tasks`（各子任务原始输出，含 `<recall>`/`<soul>`/`<radar>`/`<chaos>`/`<world_cue>`/`<spot>`）、`sl_world_ack`（隐藏事件池回执，供状态栏确认/冷却且不进正文）、`_sl_processed`（防重放）。
+   - `mindBrief` 块从实时账本提取至多 6 名在场/提及核心角色的心路维度与近 1~2 篇日记切片，供魔改推进输出防全知 `<soul>` 与按需四向错位 `<radar>`（无触发条件时完全省略，不留空标签）。
    - 历史只留用户原话正则 `【瑟瑟台账】剧情推进·历史只留输入` 会自动把历史楼层还原为 `<本轮用户输入>` 内原话，不让推进指令污染长期对话历史。
    - 对外全局 API 面见下方 3.3.1。
 
@@ -133,7 +137,7 @@
 | [src/sese-ledger/core/lens.ts](src/sese-ledger/core/lens.ts) & [projection-bridge.ts](src/sese-ledger/core/projection-bridge.ts) | `SeseLedger-*` 世界书条目生成与状态栏投影协调器桥接 |
 | [src/sese-ledger/core/director.ts](src/sese-ledger/core/director.ts) & [director-runtime.ts](src/sese-ledger/core/director-runtime.ts) | 剧情推进双策略拦截（已落楼/输入框）、跨聊天/删楼目标校验、召回与骰点组装 |
 | [src/sese-ledger/core/statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) | 状态栏 `__ubWorldCognitionSnapshot` 只读适配器（给内置魔改预设喂认知与入镜候选） |
-| [src/sese-ledger/assets/](src/sese-ledger/assets/standard-template.json) | `standard-template.json`（18 表标准模板）、`plot-preset-magic-recall.json`、`plot-preset-pure-recall.json` |
+| [src/sese-ledger/assets/](src/sese-ledger/assets/standard-template.json) | `standard-template.json`（19 表标准模板）、`plot-preset-magic-recall.json`、`plot-preset-pure-recall.json` |
 | [src/unified-statusbar/core/context-strip.ts](src/unified-statusbar/core/context-strip.ts) | 台账内嵌的标签剥离实现（与状态栏保持同步单遍栈式算法） |
 | [src/sese-ledger/core/time-machine.ts](src/sese-ledger/core/time-machine.ts) / `summary-merge.ts` / `migrator.ts` / `relocation.ts` | 时光机快照恢复、纪要合并压缩、真数据库（`qrf_plot`/`TavernDB`）迁移、一键搬家 |
 | [src/sese-ledger/settings/panel/](src/sese-ledger/settings/panel/shell.ts) | 台账**九页签**工作台面板（`TAB_DEFS`，[shell.ts:476-486](src/sese-ledger/settings/panel/shell.ts#L476-L486)：数据、表格、填表、推进、时光机、纪要合并、迁移、日志、设置）；`index.ts` 内注释仍写「六标签页」，以 `TAB_DEFS` 为准 |
@@ -155,7 +159,7 @@
 ```powershell
 npm ci
 npm run build                    # esbuild 打包 dist/index.js
-npm test                         # node --test tests/*.test.mjs（当前 102 项：99 通过 / 3 跳过 / 0 失败）
+npm test                         # node --test tests/*.test.mjs（当前 108 项：105 通过 / 3 跳过 / 0 失败）
 npm run check                    # scripts/check-release.mjs：清单、入口依赖、产物与 src/ SHA-256 校验
 git diff --exit-code -- dist     # CI 同款：构建产物必须与源码构建结果一致
 ```
@@ -198,6 +202,7 @@ Remove-Item refresh-hashes.cjs
 
 | 日期 | 版本 / Commit | 改动范围与摘要 | 验证状态 |
 |---|---|---|---|
+| 2026-11-26 | `0.1.0-alpha.13` | 落地角色心路管线与物理隔离填表：[standard-template.json](src/sese-ledger/assets/standard-template.json) 升级为 19 表（放宽 `恋爱日记表` 准入到重要角色表，新增 `角色心路档案表` `sheet_char_mind_profile` 7 列、`readMode: 'none'`、`worldbook.enabled: false`）；[scribe.ts](src/sese-ledger/core/scribe.ts) 新增单角色物理隔离填表通道（`selectMindFillTargets` / `buildIsolatedMindFillRequest` / `validateIsolatedMindOps` / `parseIsolatedMindFillOutput`）与 `settings-store.ts` / `settings-tab.ts` 开关及人数上限（默认开、3 人）；[ai-request.ts](src/sese-ledger/core/ai-request.ts) / [director.ts](src/sese-ledger/core/director.ts) / [director-runtime.ts](src/sese-ledger/core/director-runtime.ts) / [plot-tab.ts](src/sese-ledger/settings/panel/plot-tab.ts) 接入 `mindBrief` 块与 `<radar>` 空值清理；[plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json) 升级双向防全知、`<EQUIV_BAN>`、情绪惯性、`Pool_1 ≻ Pool_2` 与按需 `<task_radar>`；新增 [tests/mind-profile-pipeline.test.mjs](tests/mind-profile-pipeline.test.mjs) 并更新 `director-p4.test.mjs` | `build` / `test` 105 通过 3 跳过 / `check` 全绿；待真机验收 |
 | 2026-11-26 | `0.1.0-alpha.12 (docs)` | 纯文档交接校对：补全并更新 [README.md](README.md) / [AGENTS.md](AGENTS.md) / [SOURCE_NOTICE.md](SOURCE_NOTICE.md) / [src/README.md](src/README.md) / [src/sese-ledger/README.md](src/sese-ledger/README.md)——九页签工作台、状态栏 v2 联动与面板/防泄漏汇总、装载链与内嵌共享件同步边界、`check-release.mjs` 真实校验范围与哈希维护方法；同步刷新两份 `src/*.md` 的 SHA-256 清单。不改代码、不递增版本号 | `build` / `test` 99 通过 3 跳过 / `check` 全绿 |
 | 2026-11-22 | `0.1.0-alpha.12` | 加固 `extractTag` 与面板 `tag()` 防思考链泄漏（先用栈式 `stripContextTags` + 孤儿 `</thinking>`/`</think>` 切除思维链，再以最近开标签配对 `</tag>`，防 `<thinking>` 内未闭合顺嘴提及把大段推理吞进 `<recall>`/`<world_cue>`；`assembleFinalDirective` 过滤 `<world_cue>` 占位空词）；[statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) 提示禁止在思考写未闭合标签及空标签说明；内置 [plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json) 切换为「至少 25 条 AM 保底（不足全召回）」+ 精简 `<match>` 短句 + 保留 `<world_cue>`；扩充 `director-p4.test.mjs` / `plot-regex-panel.test.mjs` | `build` / `test` 99 通过 3 跳过 / `check` 全绿；待真机验收 |
 | 2026-11-19 | `0.1.0-alpha.11` | 同步状态栏 `ai-request-pipeline.ts`（`buildStandardPromptMiddle` 内联直传）；升级并美化 [plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts) 剧情推进面板（日间奶油手账网格纸/樱粉 + 夜间 TokyoNight Storm、支持 `NSFW` 标记/`<match>` 召回依据/`<world_cue>` 后台切入/`sl_world_ack` 选中与压住提示）；新增 [tests/plot-regex-panel.test.mjs](tests/plot-regex-panel.test.mjs) | `build` / `test` 97 通过 3 跳过 / `check` 全绿；待真机验收 |
