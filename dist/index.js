@@ -898,16 +898,16 @@ SQL示例: INSERT INTO 恋爱日记表 (写作角色, 关联角色, 日记内容
 - 列4: 四向关系认知（对主角、对关键他者、自认他人看自己、自身定位的真实判断）
 - 列5: 个人进度与打算（当前正在推进的独立私事、短期试探计划与下一步行动意图）
 - 列6: 核心纠结与情绪惯性（未解心结、吃瘪/受挫/防备/暗涌等必须跨轮延续的情绪余波）
-- 列7: 蝴蝶效应留痕（此前选择或意外在该角色身上留下的长期改变、暗伤、旧账或伏笔）
+- 列7: 蝴蝶效应留痕（此前选择或意外在该角色身上留下的长期改变、暗伤、宿怨或伏笔）
 
 [核心纪律]
 1. 双向防全知：严格立足该角色自身信息面，只写其亲见、亲闻或合理推测之内容；不得用旁白视角或他人的秘密替其开天眼。
 2. 禁虚假等价 <EQUIV_BAN> 与跨轮情绪惯性：绝不允许把表层客套、礼貌顺从、一时暧昧等价为已原谅或彻底信任；上一轮的吃瘪、防备、羞恼或猜忌必须保留为跨轮情绪惯性，不得无故清零秒和好。
 3. Pool_1 ≻ Pool_2 独立主权：角色自己的生存目标、利益筹码、私事进度（Pool_1）优先于围着主角转的附属互动（Pool_2）；必要时应维护个人私事、借故离场或主动讨要筹码。
-4. 退火与台阶机制（防钻牛角尖）：情绪惯性是有锋芒但可退火的底色，随互动、时间推移或实质筹码交换逐步消退或转入暗账。严禁抓着主角同一处小弱点连续多轮复读钻牛角尖；当矛盾已经摊明、主角已付出实质代价/给出明确台阶，或连续刺痛 1~2 轮已无新博弈收益时，应记录「暂且冷脸搁置 / 记入暗账 / 留出半个台阶」，把人物重心切回其自身 Pool_1 事务或新的博弈线。`,triggerNotes:{insert:`当已建档角色首次进入核心剧情或产生心路变化且本表尚无其行时新增。
+4. 退火与台阶机制（防钻牛角尖）：情绪惯性是有锋芒但可退火的底色，随互动、时间推移或实质筹码交换逐步消退或暂压心底。严禁抓着主角同一处小弱点连续多轮复读钻牛角尖；当矛盾已经摊明、主角已付出实质代价/给出明确台阶，或连续刺痛 1~2 轮已无新博弈收益时，应记录「暂且冷脸搁置 / 将芥蒂压回心底 / 留出半个台阶」，把人物重心切回其自身 Pool_1 事务或新的博弈线。`,triggerNotes:{insert:`当已建档角色首次进入核心剧情或产生心路变化且本表尚无其行时新增。
 SQL示例: INSERT INTO 角色心路档案表 (姓名, 人格底色与筹码, 已知事实与盲点, 四向关系认知, 个人进度与打算, 核心纠结与情绪惯性, 蝴蝶效应留痕) VALUES ('示例角色', '外冷内紧，手握旧档钥匙，底线是不被人拿捏把柄', '已知：主角昨晚去过旧仓库；盲点：不知道店长暗中调包了账本', '对主角戒备中带一丝试探；认为同僚在有意隐瞒真相', '今晚先核对备忘录里的交接时间，再决定是否亮出钥匙讨筹码', '上次被当众拆台后仍在憋着一口气，表面客气实则拉远半步', '因上轮提前离场，错过了门外留下的暗记');`,update:`该角色有新事实、误判、进度推进、情绪余波或蝴蝶效应变化时，使用 row_id 精简更新对应列（单人总字数 ≤1000 字）。
 SQL示例: UPDATE 角色心路档案表 SET 已知事实与盲点 = '已知：…；盲点：…', 核心纠结与情绪惯性 = '…' WHERE row_id = 1;
-注意：若上轮旧刺已点透或主角已给台阶，及时将情绪惯性更新为「余刺转入暗账，暂搁旧账改谈正事」，勿多轮反复抓着同一小弱点复读。`,delete:"一般不删除；角色彻底永久退场或死亡时仅在对应维度标记退场结局。"},columns:[{header:"姓名",type:"text",unique:!0,notNull:!0},{header:"人格底色与筹码",type:"text",unique:!1,notNull:!1},{header:"已知事实与盲点",type:"text",unique:!1,notNull:!1},{header:"四向关系认知",type:"text",unique:!1,notNull:!1},{header:"个人进度与打算",type:"text",unique:!1,notNull:!1},{header:"核心纠结与情绪惯性",type:"text",unique:!1,notNull:!1},{header:"蝴蝶效应留痕",type:"text",unique:!1,notNull:!1}],readMode:"none",worldbook:{enabled:!1,mode:"keyword",keywordsColumn:"姓名",wrapTag:"char_mind_profile",placement:{position:"before_character_definition",order:10002}}},{tableId:"sheet_global_data",name:"全局数据表",orderNo:11,groupId:2,note:`记录当前主角所在地点及时间相关参数。此表有且仅有一行。
+注意：若上轮旧刺已点透或主角已给台阶，及时将情绪惯性更新为「余刺暂压心底，先搁下前嫌改谈正事」，勿多轮反复抓着同一小弱点复读。`,delete:"一般不删除；角色彻底永久退场或死亡时仅在对应维度标记退场结局。"},columns:[{header:"姓名",type:"text",unique:!0,notNull:!0},{header:"人格底色与筹码",type:"text",unique:!1,notNull:!1},{header:"已知事实与盲点",type:"text",unique:!1,notNull:!1},{header:"四向关系认知",type:"text",unique:!1,notNull:!1},{header:"个人进度与打算",type:"text",unique:!1,notNull:!1},{header:"核心纠结与情绪惯性",type:"text",unique:!1,notNull:!1},{header:"蝴蝶效应留痕",type:"text",unique:!1,notNull:!1}],readMode:"none",worldbook:{enabled:!1,mode:"keyword",keywordsColumn:"姓名",wrapTag:"char_mind_profile",placement:{position:"before_character_definition",order:10002}}},{tableId:"sheet_global_data",name:"全局数据表",orderNo:11,groupId:2,note:`记录当前主角所在地点及时间相关参数。此表有且仅有一行。
 
 [列定义]
 - 列1:当前详细地点 （地点涉及多个层级时，用“-”分隔，如“星海商圈-陶艺店”，优先用“已探索地点概览”中已经存在的地点名称规范描述，新地点也参考已有地点结构）
@@ -1319,7 +1319,7 @@ ${n.extraRequest.trim()}`);let i=[...Us(dt(r)),{kind:"segment",role:"user",conte
 【上次输出存在以下问题，请修正后重新输出全部 SQL 语句（不要解释）】
 `+e.slice(0,12).map(n=>"- "+n).join(`
 `)}function ch(e){return String(e||"").replace(/<\/?span\b[^>]*>/gi,"")}function mo(e,t,n=1){if(!e)return-1;let r=e.headers.indexOf(t);return r>=0?r:n>=0&&n<e.headers.length?n:-1}function js(e,t){if(!e)return[];let n=mo(e,t,1);if(n<0)return[];let r=[],o=[...e.rows.keys()].sort((s,a)=>s-a);for(let s of o){let a=String(e.rows.get(s)?.[n]??"").trim();a&&r.push(a)}return r}function dh(e,t){if(!e||!t)return 0;let n=0,r=0;for(;;){let o=e.indexOf(t,r);if(o<0)break;n++,r=o+t.length}return n}function uh(e,t,n=yn){let r=Math.trunc(Number(n)),o=Number.isFinite(r)?Math.max(0,Math.min(5,r)):yn;if(o===0)return[];let s=new Set(js(le(e,jg),"姓名")),a=new Set(js(le(e,Xc),"姓名")),l=new Set,d=[];for(let u of[Nc,$c])for(let p of js(le(e,u),"姓名"))s.has(p)||l.has(p)||(l.add(p),d.push(p));if(d.length===0)return[];let c=String(t||""),i=[];for(let u=0;u<d.length;u++){let p=d[u],m=a.has(p),f=dh(c,p);if(!m&&f===0)continue;let b=m&&f>0?1:m?2:3;i.push({name:p,tier:b,freq:f,order:u})}return i.sort((u,p)=>u.tier!==p.tier?u.tier-p.tier:u.tier!==2&&u.freq!==p.freq?p.freq-u.freq:u.order-p.order),i.slice(0,o).map(u=>u.name)}function Rc(e,t,n="姓名"){if(!e)return null;let r=mo(e,n,1);if(r<0)return null;let o=[...e.rows.keys()].sort((s,a)=>s-a);for(let s of o){let a=e.rows.get(s);if(a&&String(a[r]??"").trim()===t)return{rowId:s,cells:a}}return null}function ph(e,t,n=2){let r=le(e,zg);if(!r)return[];let o=mo(r,"写作角色",1),s=ce(r,"关联角色"),a=ce(r,"日记内容"),l=ce(r,"发生时间"),d=ce(r,"事件类型");if(o<0||a<0)return[];let c=[],i=[...r.rows.keys()].sort((u,p)=>u-p);for(let u of i){let p=r.rows.get(u);if(!p||String(p[o]??"").trim()!==t)continue;let m=ch(String(p[a]??"")).trim();if(!m)continue;let f=l>=0?String(p[l]??"").trim():"",b=d>=0?String(p[d]??"").trim():"",g=s>=0?String(p[s]??"").trim():"",w=[f,b,g?`关联：${g}`:""].filter(Boolean).join(" | ");c.push(w?`[${w}]
-${m}`:m)}return c.slice(-Math.max(1,n))}function Jc(e){return[`【输出要求】当前为单角色物理隔离通道，仅维护角色「${e}」在「${nt}」中的唯一一行档案，只输出本轮【当前正文】引发的更新或新增：`,`1. 只允许写入「${nt}」，表名、列名逐字照抄台账；严禁输出针对其他表或其他角色的 SQL。`,`2. 已有行一律使用 UPDATE ${nt} SET ... WHERE row_id = ?（row_id 见已有数据首列）；投影写「【已有数据】空」时使用 INSERT INTO ${nt} (姓名, ...) VALUES ('${e}', ...)。`,`3. 姓名必须严格为「${e}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权；同时遵守退火原则：情绪惯性需随互动推进自然退火或转入暗账，严禁抓着同一小弱点连续多轮复读钻牛角尖，一旦矛盾已摊明或主角给出实质台阶，允许冷淡搁置并把重心切回本人 Pool_1 事务。`,"4. 每条语句一行、以分号结尾；不要输出解释、markdown 代码块，也不要输出 SELECT。","5. 若该角色本轮心路档案无实质变化，输出空（什么都不写）。"].join(`
+${m}`:m)}return c.slice(-Math.max(1,n))}function Jc(e){return[`【输出要求】当前为单角色物理隔离通道，仅维护角色「${e}」在「${nt}」中的唯一一行档案，只输出本轮【当前正文】引发的更新或新增：`,`1. 只允许写入「${nt}」，表名、列名逐字照抄台账；严禁输出针对其他表或其他角色的 SQL。`,`2. 已有行一律使用 UPDATE ${nt} SET ... WHERE row_id = ?（row_id 见已有数据首列）；投影写「【已有数据】空」时使用 INSERT INTO ${nt} (姓名, ...) VALUES ('${e}', ...)。`,`3. 姓名必须严格为「${e}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权；同时遵守退火原则：情绪惯性需随互动推进自然退火或暂压心底，严禁抓着同一小弱点连续多轮复读钻牛角尖，一旦矛盾已摊明或主角给出实质台阶，允许冷淡搁置并把重心切回本人 Pool_1 事务。`,"4. 每条语句一行、以分号结尾；不要输出解释、markdown 代码块，也不要输出 SELECT。","5. 若该角色本轮心路档案无实质变化，输出空（什么都不写）。"].join(`
 `)}function mh(e,t,n,r,o){let s=String(t||"").trim(),a=le(e,uo)||le(e,nt),l=[],d=[];for(let g of[Nc,$c]){let w=le(e,g),k=w?Rc(w,s,"姓名"):null;w&&k&&d.push(`来源表：${w.name}
 ${w.headers.join("|")}
 ${zs(k.cells)}`)}d.length>0&&l.push(`【角色基础档案（只读参考，严禁修改）】
@@ -1384,7 +1384,7 @@ ${w}
 
 <铁律>
 1. 双向防全知与心路隔离：角色（含主角）只用自己亲见亲闻与合理推测，严禁将【角色心路与心境切片】里 A 的私密心路、盲点或日记透支给不知情的 B；具体边界写在 soul 的 SEG1。
-2. 禁虚假等价 <EQUIV_BAN>、情绪惯性与【止损与台阶法则】：严禁把表面客套、顺从或一时暧昧等价为彻底原谅；但「不秒和好」绝不等于建议正文揪着主角同一处小弱点连续多轮复读钻牛角尖。锋芒只刺 1~2 轮即止：一旦角色已占上风、矛盾已说透、主角付出实质代价/给出明确台阶，或主动切回正事交易，分析上必须标明「余刺记入暗账、冷脸暂搁旧账、可顺势给半个台阶或换条件谈正事」，让正文自主推进下一步现实博弈。
+2. 禁虚假等价 <EQUIV_BAN>、情绪惯性与【止损与台阶法则】：严禁把表面客套、顺从或一时暧昧等价为彻底原谅；但「不秒和好」绝不等于建议正文揪着主角同一处小弱点连续多轮复读钻牛角尖。锋芒只刺 1~2 轮即止：一旦角色已占上风、矛盾已说透、主角付出实质代价/给出明确台阶，或主动切回正事交易，分析上必须标明「余刺暂压心底、冷脸先搁一边、可顺势给半个台阶或换条件谈正事」，让正文自主推进下一步现实博弈。
 3. 独立主权（Pool_1 ≻ Pool_2，零双人豁免）与幕后谦抑：角色优先维护自身生存目标、筹码与私事，不因双人同框就自动软化；你只提供心境风险与信息差参照，不替正文模型拍板角色好恶或强行改写人物锚立场。
 4. 顺序固定：recall → chaos → soul → radar（按条件） → spot。
 5. 【克制标点与反热血漫腔】：<soul>、<radar>、<chaos> 的行为提示及示例台词必须保持克制口语化，严禁在日常讽刺、拌嘴、试探、立威或叙述中滥用感叹号（！），防止诱发廉价热血漫咆哮腔；除极少数真正爆裂的震怒/惊变瞬间外，优先用句号、逗号、问号或省略号收住力道。
@@ -1481,7 +1481,7 @@ SEG1 认知边界（每个重要角色含主角各问一遍）
 
 SEG2 潜在抵触/回避倾向参考（仅作风险提示，由正文角色锚自主裁定是否拒绝或给台阶）
 - 默认写“无”。参考维度如下：
-  (a) 主角本轮的主动互动（邀约/对话/性爱/请求/亲密/求助等）与该角色可引用的具体特质、关系阶段、立场，或【角色心路与心境切片】里的「核心纠结与情绪惯性」「四向关系认知」真实冲突时才写具体拒绝内容；必须延续上轮吃瘪/猜忌/羞恼等情绪惯性，不秒和好、不因表面客套产生虚假等价 <EQUIV_BAN>；【止损退火】若上轮或近两轮已经就同一弱点/旧账刺探敲打过一次，且对方已露让步或切回正事，本轮严禁继续死咬同一细枝末节复读，须改为「余刺未消但暂搁旧账，顺势给半个台阶或换条件推进正事」，若无新阻力则直接写“无”；
+  (a) 主角本轮的主动互动（邀约/对话/性爱/请求/亲密/求助等）与该角色可引用的具体特质、关系阶段、立场，或【角色心路与心境切片】里的「核心纠结与情绪惯性」「四向关系认知」真实冲突时才写具体拒绝内容；必须延续上轮吃瘪/猜忌/羞恼等情绪惯性，不秒和好、不因表面客套产生虚假等价 <EQUIV_BAN>；【止损退火】若上轮或近两轮已经就同一弱点/前嫌刺探敲打过一次，且对方已露让步或切回正事，本轮严禁继续死咬同一细枝末节复读，须改为「余刺未消但先搁一边，顺势给半个台阶或换条件推进正事」，若无新阻力则直接写“无”；
   (b) 不与该角色既定人设矛盾（开放/热情/随和的角色，不得凭空变冷淡）；
   (c) 不因好感度机械拒绝，也不因好感度机械顺从。
 - 写法：“可能会…（具体意图），因为[具体特质/关系阶段/立场/心结惯性]”，可补一句回旋画面；否则必须写“无”。
@@ -1543,7 +1543,7 @@ SEG3 潜在角色主动动向参考（非强制执行，供正文对照人物锚
 候选前往地点：
 {{spot}}。
 [正文防呆提醒（非剧情脚本）]
-- 尖锐但给台阶（防钻牛角尖）：戒备与心结是人物底色，不是复读机。点刺主角弱点或翻旧账至多连刺 1~2 轮，只要占到上风、话已挑明，或主角递出实质台阶/回到正事，就顺势冷脸搁置、记入暗账或以条件换半步退让，推动剧情往下走。
+- 尖锐但给台阶（防钻牛角尖）：戒备与心结是人物底色，不是复读机。点刺主角弱点或翻陈年旧事至多连刺 1~2 轮，只要占到上风、话已挑明，或主角递出实质台阶/回到正事，就顺势冷脸先搁一边、把不快压回心底或以条件换半步退让，推动剧情往下走。
 - 对话克制感叹号（！）：日常斗嘴、冷嘲、试探与情绪流露保持沉稳生活感，严禁连篇甩感叹号搞得像热血漫吼叫；只有极少数真正爆裂、失控或骤变瞬间才准用 1 个感叹号。`,rates:{rateMain:1,ratePersonal:.3,rateErotic:1,rateCuckold:1,recallCount:25}}};var $d={format:"sese-ledger-plot-preset",schemaVersion:2,preset:{name:"极速纯召回",systemPrompt:"",contextTurnCount:1,minLength:0,maxRetries:1,tags:"recall",promptGroup:[{block:"scan",hidden:!0},{role:"system",content:`[RESET ROLE AND TASK, START NEW TASK]
 
 你是一个出色的记忆筛选大师，擅长根据故事发展和用户输入选择后续故事发展最需要记忆。
