@@ -830,7 +830,7 @@ function buildIsolatedMindOutputInstruction(charName: string): string {
     `【输出要求】当前为单角色物理隔离通道，仅维护角色「${charName}」在「${MIND_PROFILE_TABLE_NAME}」中的唯一一行档案，只输出本轮【当前正文】引发的更新或新增：`,
     `1. 只允许写入「${MIND_PROFILE_TABLE_NAME}」，表名、列名逐字照抄台账；严禁输出针对其他表或其他角色的 SQL。`,
     `2. 已有行一律使用 UPDATE ${MIND_PROFILE_TABLE_NAME} SET ... WHERE row_id = ?（row_id 见已有数据首列）；投影写「【已有数据】空」时使用 INSERT INTO ${MIND_PROFILE_TABLE_NAME} (姓名, ...) VALUES ('${charName}', ...)。`,
-    `3. 姓名必须严格为「${charName}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权。`,
+    `3. 姓名必须严格为「${charName}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权；同时遵守退火原则：情绪惯性需随互动推进自然退火或转入暗账，严禁抓着同一小弱点连续多轮复读钻牛角尖，一旦矛盾已摊明或主角给出实质台阶，允许冷淡搁置并把重心切回本人 Pool_1 事务。`,
     '4. 每条语句一行、以分号结尾；不要输出解释、markdown 代码块，也不要输出 SELECT。',
     '5. 若该角色本轮心路档案无实质变化，输出空（什么都不写）。',
   ].join('\n');

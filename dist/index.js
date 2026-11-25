@@ -543,38 +543,34 @@ INSERT INTO 纪要表 (
 $1
 </记忆回溯>`,extraIndexEnabled:!0,extraIndexEntryName:"纪要索引",extraIndexColumns:["编码索引","时间跨度","概览"],extraIndexColumnModes:{编码索引:"both",时间跨度:"both",概览:"index_only"},extraIndexInjectionTemplate:`<已发生的事件概览>
 $1
-</已发生的事件概览>`,sqlInjectionTemplate:"",entryPlacement:{position:"at_depth_as_system",depth:999,order:1e4},extraIndexPlacement:{position:"at_depth_as_system",depth:1e3,order:10010},fixedEntryPlacement:{position:"at_depth_as_system",depth:9999,order:99987},fixedIndexPlacement:{position:"at_depth_as_system",depth:9999,order:99988}},orderNo:15},sheet_k7gp2gbw7:{uid:"sheet_k7gp2gbw7",name:"瑟瑟任务表",sourceData:{note:`记录当前阶段的 5 条任务：3 条瑟瑟任务 + 2 条日常恋爱/追求任务，构成固定不可改变。
+</已发生的事件概览>`,sqlInjectionTemplate:"",entryPlacement:{position:"at_depth_as_system",depth:999,order:1e4},extraIndexPlacement:{position:"at_depth_as_system",depth:1e3,order:10010},fixedEntryPlacement:{position:"at_depth_as_system",depth:9999,order:99987},fixedIndexPlacement:{position:"at_depth_as_system",depth:9999,order:99988}},orderNo:15},sheet_k7gp2gbw7:{uid:"sheet_k7gp2gbw7",name:"瑟瑟任务表",sourceData:{note:`记录当前阶段的 5 条任务：1 条瑟瑟任务 + 4 条日常/社交/探索任务（互不重样，均有真实阻力与玩法乐趣），构成固定不可改变。
 
-【列定义】
-- 列1: 任务名称（命名简洁并能暗示核心play，不超过10个字）
-- 列2: 任务描述 （用风趣幽默的语言介绍这个任务，包括任务背景、涉及的地点与人物、以及可能出现的羞耻/情色展开。不超过50字）
-- 列3: 任务目标 （完成任务必须达成的条件，格式为目标内容（进度），进度应当切实与任务相关的，有具体指征而非抽象的情感进度，比如邀请XX完进行一次做爱（已邀请尚未开始））
+[列定义]
+- 列1: 任务名称（命名简洁有任务感与悬念，不超过10个字）
+- 列2: 任务描述（用风趣锐利的语言写出背景、涉及地点/人物、核心难点/阻碍或反转乐趣，不超过55字）
+- 列3: 任务目标（完成任务必须达成的条件，格式为「目标内容（具体可观测进度）」，禁止抽象情感进度）
 - 列4: 完成情况（仅允许为“已完成/未完成”）
-【填写规则】
-任务应根据主角接触的潜在恋爱角色角色和身处环境进行生成，但绝不可采用只可在当前场景下次才可实现的临时性目标，目标应当具体可实现。
-【瑟瑟任务（3 条）】
-任务必须和性爱有关，生成任务时可以考虑以下几种类型：
-1.和角色展开之前没有尝试过的玩法。
-2.从身心上用某种特殊方式征服某个角色。
-3.说服多个角色同时和自己进行某项互动
-4.尝试一些刺激的场景和道具
-5.去某些独特的地点或者进行某种情趣扮演进行性爱
-6.其他具有想象力和挑战性的与性爱相关的任务
-【日常恋爱/追求任务（2 条）】
-任务必须为 NSFW 取向的恋爱或追求相关任务，生成时可结合备忘录、日历事件中记录的约定、约会或剧情伏笔设计。`,initNode:`根据当前情况插入五条任务（3 条瑟瑟 + 2 条日常恋爱/追求），尽量涉及不同类型和不同人物
-
-SQL示例:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) 
-VALUES (
-'阳台野战后入', '把害羞的邻居美里哄到阳台，让她扶着栏杆背对你，夏夜凉风配醉人娇喘。', 
-'在阳台与美里完成一次后入式性爱（尚未实施）', '未完成');`,insertNode:`当前任务小于五个时，必须新增任务直到补满五个，并保持 3 条瑟瑟 + 2 条日常恋爱/追求的构成
-新增任务的类型、涉及人物和玩法尽量不与已有任务重复。
+[填写规则]
+任务必须结合主角已接触的人物、当前所处环境、备忘录约定或剧情伏笔生成，禁止只可在下一句立即顺手水掉的一次性无阻力目标。
+严禁流水账：禁止“买杯咖啡”“随便聊两句”“普通逛街”“送个小礼物”等零阻碍、零博弈的水任务；每条任务必须自带至少 1 项真实约束（时间窗口、信息差、资源缺口、第三方阻挠、人情筹码或隐藏规则），做出 RPG 式的破局乐趣。
+[瑟瑟任务（1 条）]
+聚焦当前最具张力或突破感的亲密/征服/特殊场景与玩法挑战，但不得脱离当前关系阶段硬塞突兀剧情。
+[日常/社交/探索任务（4 条，四类尽量各占 1 条不撞型）]
+1. 社交博弈/人情破局：带利益交换、套话试探、反将一军或解围周旋的社交局。
+2. 地点探索/秘密发掘：潜入、查证、摸清某处隐藏规则、追踪异动或打探不为人知的底细。
+3. 资源筹措/技能挑战：限时搞到关键道具/资金/权限，或用特定能力硬解一个现实卡点。
+4. 关系推进/修罗场周旋：处理多方误会、跨过信任门槛、平衡两头人情债或赶在截止前挽回局面。`,initNode:`根据当前情况插入五条任务（1 条瑟瑟 + 4 条日常/社交/探索），四类日常任务尽量不撞型且各有真实阻力，严禁流水账。
 
 SQL示例:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) VALUES (
-'双子口技对决', '说服纱织和真织这对双子姐妹，用樱桃小嘴同时为你服务，看谁先让你缴械。', 
-'同时接受纱织与真织的口交服务并坚持到双方满足（已说服，等待良机）', '未完成');`,updateNode:`任务名称和描述禁止更新，根据进度更新任务目标，如果任务目标达成，则完成情况更新为“已完成”（达成判定尽量宽松，避免判定错误任务一直完不成）。
+'旧档室截胡夜契', '值班表只空出二十分钟，门禁钥匙还在宿管腰上晃，你得先套出档案柜密码再赶在查房前把原件顺走。', '在宿管查房前拿到档案室钥匙并核对旧契约编号（尚未获取钥匙与密码）', '未完成');`,insertNode:`当前任务小于五个时，必须新增任务直到补满五个，并严格保持「1 条瑟瑟 + 4 条日常/社交/探索」的构成；新增任务的类型、涉及人物和玩法严禁与已有任务重复，且禁止流水账。
 
-SQL示例（任务目标更新）:UPDATE 瑟瑟任务表 SET 任务目标 = '在阳台与美里完成一次后入式性爱（已成功插入，正在进行抽送）' WHERE 任务名称 = '阳台野战后入';
-SQL示例（完成情况更新）:UPDATE 瑟瑟任务表 SET 完成情况 = '已完成' WHERE 任务名称 = '女仆咖啡桌下';
+SQL示例（瑟瑟任务）:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) VALUES (
+'阳台暗潮越界', '趁客厅众人注意力被茶话会拖住，把嘴硬的美里拉到阳台死角，在随时可能露馅的紧张感里撬开她的防线。', '在阳台避开旁人耳目与美里完成一次越界亲密互动（尚未制造独处机会）', '未完成');
+SQL示例（日常/社交/探索任务）:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) VALUES (
+'旧档室截胡夜契', '值班表只空出二十分钟，门禁钥匙还在宿管腰上晃，你得先套出档案柜密码再赶在查房前把原件顺走。', '在宿管查房前拿到档案室钥匙并核对旧契约编号（已打听到值班空档，缺钥匙与密码）', '未完成');`,updateNode:`任务名称和描述禁止更新，根据进度更新任务目标；若任务目标达成，则完成情况更新为“已完成”（达成判定保持合理宽松，避免判定过死导致卡关）。
+
+SQL示例（任务目标更新）:UPDATE 瑟瑟任务表 SET 任务目标 = '在宿管查房前拿到档案室钥匙并核对旧契约编号（已借口修水表拿走备用钥匙，正准备进档案室）' WHERE 任务名称 = '旧档室截胡夜契';
+SQL示例（完成情况更新）:UPDATE 瑟瑟任务表 SET 完成情况 = '已完成' WHERE 任务名称 = '阳台暗潮越界';
 `,deleteNode:"禁止删除",ddl:`CREATE TABLE seserenwubiao ( -- 瑟瑟任务表
   row_id INTEGER PRIMARY KEY, -- 行号
   mission_name TEXT, -- 任务名称
@@ -907,9 +903,11 @@ SQL示例: INSERT INTO 恋爱日记表 (写作角色, 关联角色, 日记内容
 [核心纪律]
 1. 双向防全知：严格立足该角色自身信息面，只写其亲见、亲闻或合理推测之内容；不得用旁白视角或他人的秘密替其开天眼。
 2. 禁虚假等价 <EQUIV_BAN> 与跨轮情绪惯性：绝不允许把表层客套、礼貌顺从、一时暧昧等价为已原谅或彻底信任；上一轮的吃瘪、防备、羞恼或猜忌必须保留为跨轮情绪惯性，不得无故清零秒和好。
-3. Pool_1 ≻ Pool_2 独立主权：角色自己的生存目标、利益筹码、私事进度（Pool_1）优先于围着主角转的附属互动（Pool_2）；必要时应维护个人私事、借故离场或主动讨要筹码。`,triggerNotes:{insert:`当已建档角色首次进入核心剧情或产生心路变化且本表尚无其行时新增。
+3. Pool_1 ≻ Pool_2 独立主权：角色自己的生存目标、利益筹码、私事进度（Pool_1）优先于围着主角转的附属互动（Pool_2）；必要时应维护个人私事、借故离场或主动讨要筹码。
+4. 退火与台阶机制（防钻牛角尖）：情绪惯性是有锋芒但可退火的底色，随互动、时间推移或实质筹码交换逐步消退或转入暗账。严禁抓着主角同一处小弱点连续多轮复读钻牛角尖；当矛盾已经摊明、主角已付出实质代价/给出明确台阶，或连续刺痛 1~2 轮已无新博弈收益时，应记录「暂且冷脸搁置 / 记入暗账 / 留出半个台阶」，把人物重心切回其自身 Pool_1 事务或新的博弈线。`,triggerNotes:{insert:`当已建档角色首次进入核心剧情或产生心路变化且本表尚无其行时新增。
 SQL示例: INSERT INTO 角色心路档案表 (姓名, 人格底色与筹码, 已知事实与盲点, 四向关系认知, 个人进度与打算, 核心纠结与情绪惯性, 蝴蝶效应留痕) VALUES ('示例角色', '外冷内紧，手握旧档钥匙，底线是不被人拿捏把柄', '已知：主角昨晚去过旧仓库；盲点：不知道店长暗中调包了账本', '对主角戒备中带一丝试探；认为同僚在有意隐瞒真相', '今晚先核对备忘录里的交接时间，再决定是否亮出钥匙讨筹码', '上次被当众拆台后仍在憋着一口气，表面客气实则拉远半步', '因上轮提前离场，错过了门外留下的暗记');`,update:`该角色有新事实、误判、进度推进、情绪余波或蝴蝶效应变化时，使用 row_id 精简更新对应列（单人总字数 ≤1000 字）。
-SQL示例: UPDATE 角色心路档案表 SET 已知事实与盲点 = '已知：…；盲点：…', 核心纠结与情绪惯性 = '…' WHERE row_id = 1;`,delete:"一般不删除；角色彻底永久退场或死亡时仅在对应维度标记退场结局。"},columns:[{header:"姓名",type:"text",unique:!0,notNull:!0},{header:"人格底色与筹码",type:"text",unique:!1,notNull:!1},{header:"已知事实与盲点",type:"text",unique:!1,notNull:!1},{header:"四向关系认知",type:"text",unique:!1,notNull:!1},{header:"个人进度与打算",type:"text",unique:!1,notNull:!1},{header:"核心纠结与情绪惯性",type:"text",unique:!1,notNull:!1},{header:"蝴蝶效应留痕",type:"text",unique:!1,notNull:!1}],readMode:"none",worldbook:{enabled:!1,mode:"keyword",keywordsColumn:"姓名",wrapTag:"char_mind_profile",placement:{position:"before_character_definition",order:10002}}},{tableId:"sheet_global_data",name:"全局数据表",orderNo:11,groupId:2,note:`记录当前主角所在地点及时间相关参数。此表有且仅有一行。
+SQL示例: UPDATE 角色心路档案表 SET 已知事实与盲点 = '已知：…；盲点：…', 核心纠结与情绪惯性 = '…' WHERE row_id = 1;
+注意：若上轮旧刺已点透或主角已给台阶，及时将情绪惯性更新为「余刺转入暗账，暂搁旧账改谈正事」，勿多轮反复抓着同一小弱点复读。`,delete:"一般不删除；角色彻底永久退场或死亡时仅在对应维度标记退场结局。"},columns:[{header:"姓名",type:"text",unique:!0,notNull:!0},{header:"人格底色与筹码",type:"text",unique:!1,notNull:!1},{header:"已知事实与盲点",type:"text",unique:!1,notNull:!1},{header:"四向关系认知",type:"text",unique:!1,notNull:!1},{header:"个人进度与打算",type:"text",unique:!1,notNull:!1},{header:"核心纠结与情绪惯性",type:"text",unique:!1,notNull:!1},{header:"蝴蝶效应留痕",type:"text",unique:!1,notNull:!1}],readMode:"none",worldbook:{enabled:!1,mode:"keyword",keywordsColumn:"姓名",wrapTag:"char_mind_profile",placement:{position:"before_character_definition",order:10002}}},{tableId:"sheet_global_data",name:"全局数据表",orderNo:11,groupId:2,note:`记录当前主角所在地点及时间相关参数。此表有且仅有一行。
 
 [列定义]
 - 列1:当前详细地点 （地点涉及多个层级时，用“-”分隔，如“星海商圈-陶艺店”，优先用“已探索地点概览”中已经存在的地点名称规范描述，新地点也参考已有地点结构）
@@ -1033,33 +1031,31 @@ INSERT INTO 纪要表 (概览, 纪要, 重要对话) VALUES ('一句话概括', 
 $1
 </记忆回溯>`,extraIndexEnabled:!0,extraIndexEntryName:"纪要索引",extraIndexColumns:["编码索引","时间跨度","概览"],extraIndexColumnModes:{编码索引:"both",时间跨度:"both",概览:"index_only"},extraIndexInjectionTemplate:`<已发生的事件概览>
 $1
-</已发生的事件概览>`,sqlInjectionTemplate:"",entryPlacement:{position:"at_depth_as_system",depth:999,order:1e4},extraIndexPlacement:{position:"at_depth_as_system",depth:1e3,order:10010},fixedEntryPlacement:{position:"at_depth_as_system",depth:9999,order:99987},fixedIndexPlacement:{position:"at_depth_as_system",depth:9999,order:99988}}},{tableId:"sheet_k7gp2gbw7",name:"瑟瑟任务表",orderNo:17,groupId:2,note:`记录当前阶段的 5 条任务：3 条瑟瑟任务 + 2 条日常恋爱/追求任务，构成固定不可改变。
+</已发生的事件概览>`,sqlInjectionTemplate:"",entryPlacement:{position:"at_depth_as_system",depth:999,order:1e4},extraIndexPlacement:{position:"at_depth_as_system",depth:1e3,order:10010},fixedEntryPlacement:{position:"at_depth_as_system",depth:9999,order:99987},fixedIndexPlacement:{position:"at_depth_as_system",depth:9999,order:99988}}},{tableId:"sheet_k7gp2gbw7",name:"瑟瑟任务表",orderNo:17,groupId:2,note:`记录当前阶段的 5 条任务：1 条瑟瑟任务 + 4 条日常/社交/探索任务（互不重样，均有真实阻力与玩法乐趣），构成固定不可改变。
 
 [列定义]
-- 列1: 任务名称（命名简洁并能暗示核心play，不超过10个字）
-- 列2: 任务描述 （用风趣幽默的语言介绍这个任务，包括任务背景、涉及的地点与人物、以及可能出现的羞耻/情色展开。不超过50字）
-- 列3: 任务目标 （完成任务必须达成的条件，格式为目标内容（进度），进度应当切实与任务相关的，有具体指征而非抽象的情感进度，比如邀请XX完进行一次做爱（已邀请尚未开始））
+- 列1: 任务名称（命名简洁有任务感与悬念，不超过10个字）
+- 列2: 任务描述（用风趣锐利的语言写出背景、涉及地点/人物、核心难点/阻碍或反转乐趣，不超过55字）
+- 列3: 任务目标（完成任务必须达成的条件，格式为「目标内容（具体可观测进度）」，禁止抽象情感进度）
 - 列4: 完成情况（仅允许为“已完成/未完成”）
 [填写规则]
-任务应根据主角接触的潜在恋爱角色角色和身处环境进行生成，但绝不可采用只可在当前场景下次才可实现的临时性目标，目标应当具体可实现。
-[瑟瑟任务（3 条）]
-任务必须和性爱有关，生成任务时可以考虑以下几种类型：
-1.和角色展开之前没有尝试过的玩法。
-2.从身心上用某种特殊方式征服某个角色。
-3.说服多个角色同时和自己进行某项互动
-4.尝试一些刺激的场景和道具
-5.去某些独特的地点或者进行某种情趣扮演进行性爱
-6.其他具有想象力和挑战性的与性爱相关的任务
-[日常恋爱/追求任务（2 条）]
-任务必须为 NSFW 取向的恋爱或追求相关任务，生成时可结合备忘录、日历事件中记录的约定、约会或剧情伏笔设计。`,triggerNotes:{insert:`当前任务小于五个时，必须新增任务直到补满五个，并保持 3 条瑟瑟 + 2 条日常恋爱/追求的构成
-新增任务的类型、涉及人物和玩法尽量不与已有任务重复。
+任务必须结合主角已接触的人物、当前所处环境、备忘录约定或剧情伏笔生成，禁止只可在下一句立即顺手水掉的一次性无阻力目标。
+严禁流水账：禁止“买杯咖啡”“随便聊两句”“普通逛街”“送个小礼物”等零阻碍、零博弈的水任务；每条任务必须自带至少 1 项真实约束（时间窗口、信息差、资源缺口、第三方阻挠、人情筹码或隐藏规则），做出 RPG 式的破局乐趣。
+[瑟瑟任务（1 条）]
+聚焦当前最具张力或突破感的亲密/征服/特殊场景与玩法挑战，但不得脱离当前关系阶段硬塞突兀剧情。
+[日常/社交/探索任务（4 条，四类尽量各占 1 条不撞型）]
+1. 社交博弈/人情破局：带利益交换、套话试探、反将一军或解围周旋的社交局。
+2. 地点探索/秘密发掘：潜入、查证、摸清某处隐藏规则、追踪异动或打探不为人知的底细。
+3. 资源筹措/技能挑战：限时搞到关键道具/资金/权限，或用特定能力硬解一个现实卡点。
+4. 关系推进/修罗场周旋：处理多方误会、跨过信任门槛、平衡两头人情债或赶在截止前挽回局面。`,triggerNotes:{insert:`当前任务小于五个时，必须新增任务直到补满五个，并严格保持「1 条瑟瑟 + 4 条日常/社交/探索」的构成；新增任务的类型、涉及人物和玩法严禁与已有任务重复，且禁止流水账。
 
-SQL示例:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) VALUES (
-'双子口技对决', '说服纱织和真织这对双子姐妹，用樱桃小嘴同时为你服务，看谁先让你缴械。', 
-'同时接受纱织与真织的口交服务并坚持到双方满足（已说服，等待良机）', '未完成');`,update:`任务名称和描述禁止更新，根据进度更新任务目标，如果任务目标达成，则完成情况更新为“已完成”（达成判定尽量宽松，避免判定错误任务一直完不成）。
+SQL示例（瑟瑟任务）:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) VALUES (
+'阳台暗潮越界', '趁客厅众人注意力被茶话会拖住，把嘴硬的美里拉到阳台死角，在随时可能露馅的紧张感里撬开她的防线。', '在阳台避开旁人耳目与美里完成一次越界亲密互动（尚未制造独处机会）', '未完成');
+SQL示例（日常/社交/探索任务）:INSERT INTO 瑟瑟任务表 (任务名称, 任务描述, 任务目标, 完成情况) VALUES (
+'旧档室截胡夜契', '值班表只空出二十分钟，门禁钥匙还在宿管腰上晃，你得先套出档案柜密码再赶在查房前把原件顺走。', '在宿管查房前拿到档案室钥匙并核对旧契约编号（已打听到值班空档，缺钥匙与密码）', '未完成');`,update:`任务名称和描述禁止更新，根据进度更新任务目标；若任务目标达成，则完成情况更新为“已完成”（达成判定保持合理宽松，避免判定过死导致卡关）。
 
-SQL示例（任务目标更新）:UPDATE 瑟瑟任务表 SET 任务目标 = '在阳台与美里完成一次后入式性爱（已成功插入，正在进行抽送）' WHERE 任务名称 = '阳台野战后入';
-SQL示例（完成情况更新）:UPDATE 瑟瑟任务表 SET 完成情况 = '已完成' WHERE 任务名称 = '女仆咖啡桌下';
+SQL示例（任务目标更新）:UPDATE 瑟瑟任务表 SET 任务目标 = '在宿管查房前拿到档案室钥匙并核对旧契约编号（已借口修水表拿走备用钥匙，正准备进档案室）' WHERE 任务名称 = '旧档室截胡夜契';
+SQL示例（完成情况更新）:UPDATE 瑟瑟任务表 SET 完成情况 = '已完成' WHERE 任务名称 = '阳台暗潮越界';
 `,delete:"禁止删除"},columns:[{header:"任务名称",type:"text",unique:!0,notNull:!0},{header:"任务描述",type:"text",unique:!1,notNull:!0},{header:"任务目标",type:"text",unique:!1,notNull:!0},{header:"完成情况",type:"text",unique:!1,notNull:!0}],readMode:"all",worldbook:{enabled:!1,mode:"constant",keywordsColumn:"任务名称",placement:{position:"before_character_definition",order:1e4}}},{tableId:"sheet_protagonist_skills",name:"主角技能表",orderNo:18,groupId:2,note:`记录主角获得的所有技能。技能广义：生活技能/职业技能/战斗技能等均算技能；即便日常技能在天赋树强化下也可有特殊效果，程度匹配世界观，既特殊又不突兀。
 [列定义]
 - 列1: 技能名称（全表唯一）
@@ -1323,7 +1319,7 @@ ${n.extraRequest.trim()}`);let i=[...Us(dt(r)),{kind:"segment",role:"user",conte
 【上次输出存在以下问题，请修正后重新输出全部 SQL 语句（不要解释）】
 `+e.slice(0,12).map(n=>"- "+n).join(`
 `)}function ch(e){return String(e||"").replace(/<\/?span\b[^>]*>/gi,"")}function mo(e,t,n=1){if(!e)return-1;let r=e.headers.indexOf(t);return r>=0?r:n>=0&&n<e.headers.length?n:-1}function js(e,t){if(!e)return[];let n=mo(e,t,1);if(n<0)return[];let r=[],o=[...e.rows.keys()].sort((s,a)=>s-a);for(let s of o){let a=String(e.rows.get(s)?.[n]??"").trim();a&&r.push(a)}return r}function dh(e,t){if(!e||!t)return 0;let n=0,r=0;for(;;){let o=e.indexOf(t,r);if(o<0)break;n++,r=o+t.length}return n}function uh(e,t,n=yn){let r=Math.trunc(Number(n)),o=Number.isFinite(r)?Math.max(0,Math.min(5,r)):yn;if(o===0)return[];let s=new Set(js(le(e,jg),"姓名")),a=new Set(js(le(e,Xc),"姓名")),l=new Set,d=[];for(let u of[Nc,$c])for(let p of js(le(e,u),"姓名"))s.has(p)||l.has(p)||(l.add(p),d.push(p));if(d.length===0)return[];let c=String(t||""),i=[];for(let u=0;u<d.length;u++){let p=d[u],m=a.has(p),f=dh(c,p);if(!m&&f===0)continue;let b=m&&f>0?1:m?2:3;i.push({name:p,tier:b,freq:f,order:u})}return i.sort((u,p)=>u.tier!==p.tier?u.tier-p.tier:u.tier!==2&&u.freq!==p.freq?p.freq-u.freq:u.order-p.order),i.slice(0,o).map(u=>u.name)}function Rc(e,t,n="姓名"){if(!e)return null;let r=mo(e,n,1);if(r<0)return null;let o=[...e.rows.keys()].sort((s,a)=>s-a);for(let s of o){let a=e.rows.get(s);if(a&&String(a[r]??"").trim()===t)return{rowId:s,cells:a}}return null}function ph(e,t,n=2){let r=le(e,zg);if(!r)return[];let o=mo(r,"写作角色",1),s=ce(r,"关联角色"),a=ce(r,"日记内容"),l=ce(r,"发生时间"),d=ce(r,"事件类型");if(o<0||a<0)return[];let c=[],i=[...r.rows.keys()].sort((u,p)=>u-p);for(let u of i){let p=r.rows.get(u);if(!p||String(p[o]??"").trim()!==t)continue;let m=ch(String(p[a]??"")).trim();if(!m)continue;let f=l>=0?String(p[l]??"").trim():"",b=d>=0?String(p[d]??"").trim():"",g=s>=0?String(p[s]??"").trim():"",w=[f,b,g?`关联：${g}`:""].filter(Boolean).join(" | ");c.push(w?`[${w}]
-${m}`:m)}return c.slice(-Math.max(1,n))}function Jc(e){return[`【输出要求】当前为单角色物理隔离通道，仅维护角色「${e}」在「${nt}」中的唯一一行档案，只输出本轮【当前正文】引发的更新或新增：`,`1. 只允许写入「${nt}」，表名、列名逐字照抄台账；严禁输出针对其他表或其他角色的 SQL。`,`2. 已有行一律使用 UPDATE ${nt} SET ... WHERE row_id = ?（row_id 见已有数据首列）；投影写「【已有数据】空」时使用 INSERT INTO ${nt} (姓名, ...) VALUES ('${e}', ...)。`,`3. 姓名必须严格为「${e}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权。`,"4. 每条语句一行、以分号结尾；不要输出解释、markdown 代码块，也不要输出 SELECT。","5. 若该角色本轮心路档案无实质变化，输出空（什么都不写）。"].join(`
+${m}`:m)}return c.slice(-Math.max(1,n))}function Jc(e){return[`【输出要求】当前为单角色物理隔离通道，仅维护角色「${e}」在「${nt}」中的唯一一行档案，只输出本轮【当前正文】引发的更新或新增：`,`1. 只允许写入「${nt}」，表名、列名逐字照抄台账；严禁输出针对其他表或其他角色的 SQL。`,`2. 已有行一律使用 UPDATE ${nt} SET ... WHERE row_id = ?（row_id 见已有数据首列）；投影写「【已有数据】空」时使用 INSERT INTO ${nt} (姓名, ...) VALUES ('${e}', ...)。`,`3. 姓名必须严格为「${e}」，单人 6 个内容维度合计 ≤1000 字；严守双向防全知、禁虚假等价 <EQUIV_BAN>、延续跨轮情绪惯性与 Pool_1 ≻ Pool_2 独立主权；同时遵守退火原则：情绪惯性需随互动推进自然退火或转入暗账，严禁抓着同一小弱点连续多轮复读钻牛角尖，一旦矛盾已摊明或主角给出实质台阶，允许冷淡搁置并把重心切回本人 Pool_1 事务。`,"4. 每条语句一行、以分号结尾；不要输出解释、markdown 代码块，也不要输出 SELECT。","5. 若该角色本轮心路档案无实质变化，输出空（什么都不写）。"].join(`
 `)}function mh(e,t,n,r,o){let s=String(t||"").trim(),a=le(e,uo)||le(e,nt),l=[],d=[];for(let g of[Nc,$c]){let w=le(e,g),k=w?Rc(w,s,"姓名"):null;w&&k&&d.push(`来源表：${w.name}
 ${w.headers.join("|")}
 ${zs(k.cells)}`)}d.length>0&&l.push(`【角色基础档案（只读参考，严禁修改）】
@@ -1388,9 +1384,10 @@ ${w}
 
 <铁律>
 1. 双向防全知与心路隔离：角色（含主角）只用自己亲见亲闻与合理推测，严禁将【角色心路与心境切片】里 A 的私密心路、盲点或日记透支给不知情的 B；具体边界写在 soul 的 SEG1。
-2. 禁虚假等价 <EQUIV_BAN> 与情绪惯性：严禁把表面客套、顺从、妥协或暧昧等价为已原谅或彻底信任；必须延续角色上一轮的吃瘪、戒备、羞恼或心结惯性。
+2. 禁虚假等价 <EQUIV_BAN>、情绪惯性与【止损与台阶法则】：严禁把表面客套、顺从或一时暧昧等价为彻底原谅；但「不秒和好」绝不等于揪着主角同一处小弱点连续多轮复读钻牛角尖。锋芒只刺 1~2 轮即止：一旦角色已占上风、矛盾已说透、主角付出实质代价/给出明确台阶，或主动切回正事交易，角色必须学会「余刺记入暗账、冷脸暂搁旧账、顺势给半个台阶或换条件谈正事」，把戏推进下一步现实博弈。
 3. 独立主权（Pool_1 ≻ Pool_2，零双人豁免）与心绪向内：角色优先维护自身生存目标、筹码与私事，不因双人同框就自动软化或围着主角打转；角色只自省自己的动机与失态，不替别人下结论。
 4. 顺序固定：recall → chaos → soul → radar（按条件） → spot。
+5. 【克制标点与反热血漫腔】：<soul>、<radar>、<chaos> 的行为提示及角色对白必须保持克制口语化，严禁在日常讽刺、拌嘴、试探、立威或叙述中滥用感叹号（！），防止写出廉价热血漫咆哮腔；除极少数真正爆裂的震怒/惊变瞬间外，优先用句号、逗号、问号或省略号收住力道。
 </铁律>`},{role:"user",content:"本局信息如下："},{block:"scan"},{block:"dossier"},{block:"context"},{block:"mindBrief"},{block:"prevDirective",tags:["chaos_bg","chaos_char"]},{role:"user",content:`<task_rules>
 任务：从【已有纪要】召回与当前局势最相关的记忆，先输出 <match>，再输出 <recall>。
 
@@ -1484,7 +1481,7 @@ SEG1 认知边界（每个重要角色含主角各问一遍）
 
 SEG2 拒绝/回避意图
 - 默认写“无”。要求如下：
-  (a) 主角本轮的主动互动（邀约/对话/性爱/请求/亲密/求助等）与该角色可引用的具体特质、关系阶段、立场，或【角色心路与心境切片】里的「核心纠结与情绪惯性」「四向关系认知」真实冲突时才写具体拒绝内容；必须延续上轮吃瘪/猜忌/羞恼等情绪惯性，不秒和好、不因表面客套产生虚假等价 <EQUIV_BAN>；
+  (a) 主角本轮的主动互动（邀约/对话/性爱/请求/亲密/求助等）与该角色可引用的具体特质、关系阶段、立场，或【角色心路与心境切片】里的「核心纠结与情绪惯性」「四向关系认知」真实冲突时才写具体拒绝内容；必须延续上轮吃瘪/猜忌/羞恼等情绪惯性，不秒和好、不因表面客套产生虚假等价 <EQUIV_BAN>；【止损退火】若上轮或近两轮已经就同一弱点/旧账刺探敲打过一次，且对方已露让步或切回正事，本轮严禁继续死咬同一细枝末节复读，须改为「余刺未消但暂搁旧账，顺势给半个台阶或换条件推进正事」，若无新阻力则直接写“无”；
   (b) 不与该角色既定人设矛盾（开放/热情/随和的角色，不得凭空变冷淡）；
   (c) 不因好感度机械拒绝，也不因好感度机械顺从。
 - 写法：“可能会…（具体意图），因为[具体特质/关系阶段/立场/心结惯性]”，可补一句回旋画面；否则必须写“无”。
@@ -1544,7 +1541,10 @@ SEG3 角色主动（仅当该角色本轮 <chaos_char> 满100触发主动，或�
 {{radar}}
 {{world_cue}}
 候选前往地点：
-{{spot}}。`,rates:{rateMain:1,ratePersonal:.3,rateErotic:1,rateCuckold:1,recallCount:25}}};var $d={format:"sese-ledger-plot-preset",schemaVersion:2,preset:{name:"极速纯召回",systemPrompt:"",contextTurnCount:1,minLength:0,maxRetries:1,tags:"recall",promptGroup:[{block:"scan",hidden:!0},{role:"system",content:`[RESET ROLE AND TASK, START NEW TASK]
+{{spot}}。
+[正文演出补充铁律]
+- 尖锐但给台阶（防钻牛角尖）：戒备与心结是人物底色，不是复读机。点刺主角弱点或翻旧账至多连刺 1~2 轮，只要占到上风、话已挑明，或主角递出实质台阶/回到正事，就顺势冷脸搁置、记入暗账或以条件换半步退让，推动剧情往下走。
+- 对话克制感叹号（！）：日常斗嘴、冷嘲、试探与情绪流露保持沉稳生活感，严禁连篇甩感叹号搞得像热血漫吼叫；只有极少数真正爆裂、失控或骤变瞬间才准用 1 个感叹号。`,rates:{rateMain:1,ratePersonal:.3,rateErotic:1,rateCuckold:1,recallCount:25}}};var $d={format:"sese-ledger-plot-preset",schemaVersion:2,preset:{name:"极速纯召回",systemPrompt:"",contextTurnCount:1,minLength:0,maxRetries:1,tags:"recall",promptGroup:[{block:"scan",hidden:!0},{role:"system",content:`[RESET ROLE AND TASK, START NEW TASK]
 
 你是一个出色的记忆筛选大师，擅长根据故事发展和用户输入选择后续故事发展最需要记忆。
 `},{role:"user",content:`<task_rules>

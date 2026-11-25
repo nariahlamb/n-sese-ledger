@@ -89,6 +89,18 @@ test('标准模板已升级为 19 张表：新增角色心路档案表且放宽�
   assert.match(mind.note, /1000/);
   assert.match(mind.note, /EQUIV_BAN/);
   assert.match(mind.note, /Pool_1/);
+  assert.match(mind.note, /退火与台阶机制/);
+  assert.match(mind.note, /钻牛角尖/);
+
+  const missionTable = standardTemplateJson.tables.find((t) => t.name === '瑟瑟任务表');
+  assert.ok(missionTable);
+  assert.equal(missionTable.tableId, 'sheet_k7gp2gbw7');
+  assert.deepEqual(
+    missionTable.columns.map((c) => c.header),
+    ['任务名称', '任务描述', '任务目标', '完成情况'],
+  );
+  assert.match(missionTable.note, /1 条瑟瑟任务 \+ 4 条日常\/社交\/探索任务/);
+  assert.match(missionTable.note, /严禁流水账/);
 });
 
 test('computeUpdatePlan 默认摘除角色心路档案表，关闭隔离时可回退打包；selectMindFillTargets 按优先级排序截断', () => {
@@ -347,6 +359,10 @@ test('buildMindBriefBlock 与 plot-preset-magic-recall 含/不含 radar 的提�
   const preset = directorMod.builtinDriverPreset('魔改召回');
   assert.equal(preset.promptGroup.some((m) => m.block === 'mindBrief'), true);
   assert.ok(directorMod.splitTags(preset.tags).includes('radar'));
+  assert.match(preset.promptGroup[0].content, /止损与台阶法则/);
+  assert.match(preset.promptGroup[0].content, /克制标点与反热血漫腔/);
+  assert.match(preset.finalDirectiveTemplate, /尖锐但给台阶/);
+  assert.match(preset.finalDirectiveTemplate, /克制感叹号（！）/);
 
   const baseRaw = [
     '<recall>AM0001</recall>',
