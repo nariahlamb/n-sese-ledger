@@ -2,16 +2,18 @@
 
 > **致后续接手本仓库的 AI（强制维护纪律）**
 > 1. **每次修改本仓库代码、标准表结构、推进预设或外部接口后，必须同步更新本 README**（至少更新「当前改造状态与未完成项」「表结构与世界书契约」及文末「改造记录」），严禁只改代码不留记录。
-> 2. **先读再改，改完自动推仓（长期明确授权）**：涉及 `src/` 修改必须同步刷新 `source-files.sha256.json`，重建 `dist/index.js`，并运行 `npm test` 与 `npm run check`；全绿后同步递增版本号并**直接 `git commit` 与 `git push origin main`**（无需逐次询问，也不要打包 zip，详见 [AGENTS.md](AGENTS.md)）。
-> 3. **做角色卡联动必看**：第 3 节完整列出了台账默认 18 张表的表名/分组/列名、`SeseLedger-*` 世界书投影槽位、填表与剧情推进的宿主字段契约，写卡时直接对照，无需猜字段名。
-> 4. **设计基准**：排障与重构一律以本仓库既有契约与 TT/ST 宿主实态为准，不套用其他外部数据库插件的实现方式。
+> 2. **先读再改，按固定顺序交付（长期明确授权）**：① 改代码/文档 → ② 改到 `src/` 时刷新 `source-files.sha256.json` 并执行 `npm run build` 重建 `dist/index.js` → ③ 递增四处版本号（**仅功能/界面/修复改动**；纯文档同步不递增）并更新本 README → ④ 运行 `npm run build`、`npm test`、`npm run check` 全绿，确认 `git diff -- dist` 无异常 → ⑤ `git add <明确列出的文件>`、`git commit`、`git push origin main`（无需逐次询问，也不要打包 zip，详见 [AGENTS.md](AGENTS.md)）。
+> 3. **在 Antigravity 等独立客户端打开本仓时**：`src/unified-statusbar/core/` 是内嵌共享件副本，其中 `env.ts` 含台账 Toast 前缀定制、`external-projection-client.ts` 为伴生仓专用，**禁止整目录盲目覆盖**；同步共享件须逐文件比对并刷新 SHA-256 清单（见 [src/README.md](src/README.md)）。
+> 4. **做角色卡联动必看**：第 3 节完整列出了台账默认 18 张表的表名/分组/列名、`SeseLedger-*` 世界书投影槽位、填表与剧情推进的宿主字段契约，写卡时直接对照，无需猜字段名。
+> 5. **设计基准**：排障与重构一律以本仓库既有契约与 TT/ST 宿主实态为准，不套用其他外部数据库插件的实现方式。
 
 ---
 
 ## 1. 定位与运行依赖
 
 - **扩展名称**：`瑟瑟台账`（`manifest.json` `loading_order: 210`，在 `n-sese-unified-statusbar` `200` 之后、`n-sese-phone` `220` 之前装载）
-- **当前版本**：`0.1.0-alpha.12`（基于 `2f3a727` 推进，功能性改动均递增版本并推仓供 TT 拉取测）
+- **当前版本**：`0.1.0-alpha.12`（当前 HEAD `dd63837`，最初基于 `2f3a727` 推进；功能性改动递增版本并推仓供 TT 拉取实测，纯文档同步不递增版本但记 `(docs)` Changelog）
+- **宿主要求**：`manifest.json` 声明 `minimum_client_version: 1.13.0`；装载前由 [runtime/extension.js](runtime/extension.js) 做能力检查——`SillyTavern.getContext` 与 `CHAT_CHANGED`、酒馆 jQuery、`toastr`，以及 `TavernHelper` 的 `generateRaw` / `injectPrompts` / `getWorldbook` / `replaceWorldbook` / `getCharWorldbookNames` / `getWorldbookNames`，缺项时在扩展设置区显示「安装状态」面板与中文缺项提示。台账 `template: false`（不注入状态栏壳）、`blockDatabase: true`（检测到另一套数据库插件时拒绝混装，提示停用，不删数据）。
 - **宿主设置键**：`extensionSettings.sese_ledger_v1`（详见 [core/settings-store.ts](src/sese-ledger/core/settings-store.ts)）
 - **协同关系**：
   - 安装 `n-sese-unified-statusbar` 时，台账从状态栏设置面板打开工作台，并通过 `__ubWorldbookProjection` 共享同一主世界书写入队列、通过 `__ubWorldCognitionSnapshot` 读取世界认知快照（单开时自动安全降级）。
@@ -21,7 +23,7 @@
 
 ---
 
-## 2. 当前改造状态与未完成项（截至 2026-11-17）
+## 2. 当前改造状态与未完成项（截至 2026-11-22）
 
 | 模块 / 阶段 | 当前状态 | 关键证据与说明 |
 |---|---|---|
@@ -35,9 +37,13 @@
 | **工作台 UI 与模板持久化** | ✅ 代码+单测完成 | 奶油手账日间默认主题（支持深浅切换）；表格数据页重构为电脑端滑动网格布局并下线字段健康页签；跨卡记住并沿用当前模板（[settings/panel/](src/sese-ledger/settings/panel/shell.ts)） |
 | **进度 Toast 防误触与单开兜底** | ✅ 代码+单测完成 | `fill-notify.ts` 为进度 toast 补充 `sl-progress-toast` 单开/原版兜底半透明紧凑样式与 `30×30` 大 `×` 热区，捕获阶段拦截关闭钮旁 8px 缓冲带误触并转为关闭到后台（[fill-notify.ts](src/sese-ledger/core/fill-notify.ts) `v0.1.0-alpha.5`） |
 | **魔改推进与状态栏后台演化 v2 联动** | ✅ 代码+单测完成 | [statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) 升级消费 v2 `eventPool`（兼容 v1）并产出 `<statusbar_events>`（宁缺毋滥/限量/防撞车/`<world_ack>` 回执）；[director.ts](src/sese-ledger/core/director.ts) 解除预设名硬编码（`statusbarBridge` + `{{world_cue}}` 识别）并解析 `sl_world_ack`；[host-ai.ts](src/sese-ledger/core/host-ai.ts) 委派时暂停 `UBS-世界演化-世界动态` 防重喂；[director-runtime.ts](src/sese-ledger/core/director-runtime.ts) 三入口落楼写回 `sl_world_ack`；[plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json)/[plot-tab.ts](src/sese-ledger/settings/panel/plot-tab.ts)/[plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts)/[index.ts](src/sese-ledger/index.ts) 补齐 `<world_cue>` 展示、极简桥开关与 `isDriverWorldBridgeActive`（`v0.1.0-alpha.10`） |
+| **剧情推进面板重制与 AI 请求管线同步（`0.1.0-alpha.11`）** | ✅ 代码+单测完成 | [plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts) 重制为奶油手账（日间网格纸/樱粉）+ TokyoNight Storm（夜间）双主题，支持 `NSFW` 标记、`<match>` 召回依据、`<world_cue>` 后台切入与 `sl_world_ack` 选中/压住提示；同步内嵌共享件 [ai-request-pipeline.ts](src/unified-statusbar/core/ai-request-pipeline.ts) 的 `buildStandardPromptMiddle` 内联直传；新增 [tests/plot-regex-panel.test.mjs](tests/plot-regex-panel.test.mjs) |
+| **思考链泄漏加固与魔改预设保底（`0.1.0-alpha.12`）** | ✅ 代码+单测完成 | [director.ts](src/sese-ledger/core/director.ts) 的 `extractTag` 先用栈式 `stripContextTags` 剔块、再切除孤儿 `</thinking>` / `</think>` 后才配对目标闭标签（防 `<thinking>` 内顺嘴提及未闭合标签把大段推理吞进 `<recall>` / `<world_cue>`），面板 `tag()` 同步；`assembleFinalDirective` 过滤 `<world_cue>` 占位空词；[plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json) 恢复「至少 25 条 AM 保底（不足全召回）」；扩充 `director-p4.test.mjs` / `plot-regex-panel.test.mjs` |
 | **真机回归与可选本地模板测试** | ⏳ 待继续验证 | 离线：`npm test` **99 通过 / 3 跳过**（1 项为 jsdom 空聊天兜底，2 项依赖本机未附带的私人特调模板），`npm run check` 通过；真实手机 TT / 电脑 TT 多轮连发自动填表、世界书净化与魔改推进按需挑选事件闭环待真机验证 |
 
 ---
+
+> **单开安全降级**：未启用 `n-sese-unified-statusbar` 时台账照常运行——从状态栏打开工作台、`__ubWorldbookProjection` 共享写入队列、`__ubWorldCognitionSnapshot`（v2 事件池，兼容 v1）与 `__ubStorageRelocation` 全部缺席，此时台账退回自建投影与单机路径：不报错、不阻断填表与推进，`isDriverWorldBridgeActive()` 返回 `false`，推进预设的 `<world_cue>` 桥接自动关闭。
 
 ## 3. 角色卡开发必读：表结构、世界书与推进契约
 
@@ -89,7 +95,30 @@
 2. **剧情推进与用户楼字段**（[director.ts](src/sese-ledger/core/director.ts) & [director-runtime.ts](src/sese-ledger/core/director-runtime.ts)）：
    - 规划写入用户消息的字段：`mes`（聚合后最终指令）、`sl_plot`（最终指令真源）、`sl_plot_tasks`（各子任务原始输出，含 `<recall>`/`<soul>`/`<chaos>`/`<world_cue>`/`<spot>`）、`sl_world_ack`（隐藏事件池回执，供状态栏确认/冷却且不进正文）、`_sl_processed`（防重放）。
    - 历史只留用户原话正则 `【瑟瑟台账】剧情推进·历史只留输入` 会自动把历史楼层还原为 `<本轮用户输入>` 内原话，不让推进指令污染长期对话历史。
-   - 对外全局 API：`window.SeseLedgerAPI`（及条件托管的 `window.AutoCardUpdaterAPI`）。
+   - 对外全局 API 面见下方 3.3.1。
+
+### 3.3.1 对外 API 面（`window.SeseLedgerAPI`）
+
+装载完成时 canonical 对象同时挂到 `window.SeseLedgerAPI` 与 `parent.SeseLedgerAPI`；未检测到外部真数据库时条件注册 `window.AutoCardUpdaterAPI = __legacyFace`（老版状态栏与现版小手机零改动可用），检测到真数据库则只旁观不注册；卸载时按同样条件删除。
+
+| 成员 | 用途 |
+|---|---|
+| `version` / `ready` | 版本号与就绪 Promise |
+| `__legacyFace` | 老形态 API 的直接投影（`AutoCardUpdaterAPI` 兼容面） |
+| `fieldContracts` | 字段契约注册表（外部模块按表/列查询展示名与语义） |
+| `reportIssue(level, source, message, detail?)` | 外部模块把低频失败写进工作台日志（来源非六类时归「其他」；成功路径禁用） |
+| `snapshot()` / `query(table, opts)` / `readCell(table, rowId, column)` / `apply(ops, opts)` | 读写门面：整本快照、按表查询、读单元格、批量提交操作 |
+| `onChange(cb)` | 表格数据变更订阅（返回注销器） |
+| `tableWorldbookInjection(table)` | 该表是否由台账投影世界书（v2 `worldbook.enabled` 且非停用组）；状态栏据此让位重复注入 |
+| `isDriverWorldBridgeActive()` | 推进是否正与状态栏后台事件桥联动（真数据库旁观 / 推进关闭 / 预设未开桥接 → `false`） |
+| `notifyStatusbarWorldbookSync()` | 手动触发状态栏世界书投影重排（world / character-dynamic）；桥缺席时静默 |
+| `driver` | 推进预设面：`builtinNames()` / `getPreset()` / `setPreset()` / `deletePreset()` / `isValidPreset()` / `resetRound(input)` |
+| `fill` | 填表面：`isRunning()` / `getState()` / `subscribe()` / `terminate()` / `runNow()` / `refreshWorldbook()` |
+| `summaryMerge` / `timemachine` / `migrate` | 纪要合并、时光机回滚、真数据库迁移向导（`fromDb` / `alignToTemplate` / `apply`） |
+| `templateBinding` / `exportBook()` / `importBook()` / `recovery` / `bakeStateAt(floor)` | 模板绑定与套用、整本导入导出、台账找回、按楼层烘焙状态 |
+| `prompts` / `aiRequest()` / `openSettings(tab?)` / `syncPlotRegex()` | 提示词读写、建表向导同源 AI 请求、打开工作台指定页签、推进显示正则联动 |
+
+**双向生命周期挂钩**：台账 `dispose()` 先撤 `projectionBridge` 的外部投影注册（防协调器读到已封存 runtime），再执行 disposers、`flush()` 并 `close()` / `destroy()` 存储、注销面板与两处全局 API；反向地，状态栏启用时通过 `__ubWorldbookProjection` 注册投影描述符、通过 `__ubWorldCognitionSnapshot` 提供只读快照，台账据 `isDriverWorldBridgeActive()` 决定是否产出 `<world_cue>` 并写回 `sl_world_ack`。
 
 ---
 
@@ -107,21 +136,61 @@
 | [src/sese-ledger/assets/](src/sese-ledger/assets/standard-template.json) | `standard-template.json`（18 表标准模板）、`plot-preset-magic-recall.json`、`plot-preset-pure-recall.json` |
 | [src/unified-statusbar/core/context-strip.ts](src/unified-statusbar/core/context-strip.ts) | 台账内嵌的标签剥离实现（与状态栏保持同步单遍栈式算法） |
 | [src/sese-ledger/core/time-machine.ts](src/sese-ledger/core/time-machine.ts) / `summary-merge.ts` / `migrator.ts` / `relocation.ts` | 时光机快照恢复、纪要合并压缩、真数据库（`qrf_plot`/`TavernDB`）迁移、一键搬家 |
-| [src/sese-ledger/settings/panel/](src/sese-ledger/settings/panel/shell.ts) | 台账六页签工作台面板（数据、表格、填表、推进、时光机、设置/迁移/合并） |
+| [src/sese-ledger/settings/panel/](src/sese-ledger/settings/panel/shell.ts) | 台账**九页签**工作台面板（`TAB_DEFS`，[shell.ts:476-486](src/sese-ledger/settings/panel/shell.ts#L476-L486)：数据、表格、填表、推进、时光机、纪要合并、迁移、日志、设置）；`index.ts` 内注释仍写「六标签页」，以 `TAB_DEFS` 为准 |
+| [index.js](index.js) → [runtime/extension.js](runtime/extension.js) | 宿主装载层：能力检查、安装状态面板、旧脚本/数据库混装拦截、动态 `import('dist/index.js')`、启动后校验 `__SL_LOADED__` |
+| [src/unified-statusbar/core/ai-request-pipeline.ts](src/unified-statusbar/core/ai-request-pipeline.ts) / [ai-tool-shield.ts](src/unified-statusbar/core/ai-tool-shield.ts) | 内嵌共享件：后台 AI 请求管线与出站消息净化（填表/推进共用提示词拼装与自定义 API `source` 透传） |
+| [src/unified-statusbar/core/worldbook-entry.ts](src/unified-statusbar/core/worldbook-entry.ts) / [worldbook-projection.ts](src/unified-statusbar/core/worldbook-projection.ts) / [external-projection-client.ts](src/unified-statusbar/core/external-projection-client.ts) | 内嵌共享件：世界书条目构造、主世界书解析、外部投影注册（最后一个为伴生仓专用） |
+| [src/unified-statusbar/core/env.ts](src/unified-statusbar/core/env.ts) | 内嵌共享件：`getToastr()` 含台账 toast 前缀定制 |
 
 ---
 
+> **内嵌共享件同步边界**：`src/unified-statusbar/core/`（42 个文件）与 `docs/色色灵感数据库模板V3.3.4.json` 是仓库内副本，与 `n-sese-unified-statusbar` 同名文件保持算法一致，但 `env.ts`（台账 toast 前缀）与 `external-projection-client.ts`（伴生仓专用）为有意差异；同步上游时逐文件比对、**禁止整目录覆盖**，改后刷新 `source-files.sha256.json`。详见 [src/README.md](src/README.md)。
+
 ## 5. 构建与自检命令
+
+环境：Node `>=22.12.0`（`package.json` 的 `engines`），CI 用 Node 24（[.github/workflows/build.yml](.github/workflows/build.yml)）。新克隆先 `npm ci` 安装依赖（`npm install` 可能改写 lockfile）。
 
 在 `n-sese-suite/n-sese-ledger` 目录下执行：
 
 ```powershell
-npm run build   # esbuild 打包 dist/index.js
-npm test        # node --test tests/*.test.mjs（当前 99 通过 / 3 跳过 / 0 失败）
-npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 完整性校验
+npm ci
+npm run build                    # esbuild 打包 dist/index.js
+npm test                         # node --test tests/*.test.mjs（当前 102 项：99 通过 / 3 跳过 / 0 失败）
+npm run check                    # scripts/check-release.mjs：清单、入口依赖、产物与 src/ SHA-256 校验
+git diff --exit-code -- dist     # CI 同款：构建产物必须与源码构建结果一致
 ```
 
-> 若修改了 `src/` 下任意文件，必须先重算 `source-files.sha256.json` 与执行 `npm run build`，否则 `npm run check` 会失败。
+**3 项跳过测试的原因**（环境缺件，不是失败）：
+
+1. `聊天清空后恢复状态栏壳，保留已迁出的弹窗；卸载器解绑`——台账 `template: false`，该用例为状态栏壳专用，台账侧不注入壳；
+2. `用户斯德哥摩尔特调：读写、结构保存、切换、取消与重载持久化`——需本机私人特调模板，设置 `LEDGER_ACCEPTANCE_TEMPLATE` 后才运行；
+3. `真实「生活化 → 去情绪」模板预览指出情绪列`——本地私人模板未提供，显式跳过而不用 Git/宿主路径替代。
+
+**`check-release.mjs` 的真实校验范围**：`manifest.json` 与 `package.json` 版本一致、`homePage` 指向 `github.com/<owner>/<pkg.name>`、`manifest.js === 'index.js'`、版本号格式合规、必需文件存在（`index.js` / `runtime/*` / `dist/index.js` / `SOURCE_NOTICE.md` / `README.md`）、`index.js` 的本地静态依赖可被 esbuild 解析、`dist/index.js` 非空且不含本机绝对路径、`source-files.sha256.json` 内每个文件逐条重算 SHA-256。
+
+**它不做什么**：不校验 lockfile 四处版本一致；不自动发现 `src/` 下漏登记的新文件（清单靠人维护）；不重算 `dist/index.js` 与源码是否同构——这三项分别靠人工核对、登记纪律与 `npm run build` + `git diff --exit-code -- dist`（CI 已跑）兜底。
+
+**更新 `source-files.sha256.json` 的方法**：键为仓库相对路径（`src/...`），值为该文件字节的 SHA-256（小写十六进制）。改完 `src/**` 后只重算受影响条目即可；单条核对：
+
+```powershell
+node -e "const fs=require('fs'),c=require('crypto');console.log(c.createHash('sha256').update(fs.readFileSync('src/README.md')).digest('hex'))"
+```
+
+批量重算清单内已有条目（一次性脚本，跑完删除）：
+
+```powershell
+@'
+const fs = require('fs'), c = require('crypto');
+const p = 'source-files.sha256.json';
+const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+for (const k of Object.keys(j.files)) j.files[k] = c.createHash('sha256').update(fs.readFileSync(k)).digest('hex');
+fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+'@ | Set-Content -Encoding utf8 refresh-hashes.cjs
+node refresh-hashes.cjs
+Remove-Item refresh-hashes.cjs
+```
+
+新增/删除 `src/**` 文件时必须手工增删对应键；之后 `npm run check` 会逐条复核。
 
 ---
 
@@ -129,6 +198,7 @@ npm run check   # scripts/check-release.mjs：清单、依赖及 src/ SHA-256 �
 
 | 日期 | 版本 / Commit | 改动范围与摘要 | 验证状态 |
 |---|---|---|---|
+| 2026-11-26 | `0.1.0-alpha.12 (docs)` | 纯文档交接校对：补全并更新 [README.md](README.md) / [AGENTS.md](AGENTS.md) / [SOURCE_NOTICE.md](SOURCE_NOTICE.md) / [src/README.md](src/README.md) / [src/sese-ledger/README.md](src/sese-ledger/README.md)——九页签工作台、状态栏 v2 联动与面板/防泄漏汇总、装载链与内嵌共享件同步边界、`check-release.mjs` 真实校验范围与哈希维护方法；同步刷新两份 `src/*.md` 的 SHA-256 清单。不改代码、不递增版本号 | `build` / `test` 99 通过 3 跳过 / `check` 全绿 |
 | 2026-11-22 | `0.1.0-alpha.12` | 加固 `extractTag` 与面板 `tag()` 防思考链泄漏（先用栈式 `stripContextTags` + 孤儿 `</thinking>`/`</think>` 切除思维链，再以最近开标签配对 `</tag>`，防 `<thinking>` 内未闭合顺嘴提及把大段推理吞进 `<recall>`/`<world_cue>`；`assembleFinalDirective` 过滤 `<world_cue>` 占位空词）；[statusbar-cognition.ts](src/sese-ledger/core/statusbar-cognition.ts) 提示禁止在思考写未闭合标签及空标签说明；内置 [plot-preset-magic-recall.json](src/sese-ledger/assets/plot-preset-magic-recall.json) 切换为「至少 25 条 AM 保底（不足全召回）」+ 精简 `<match>` 短句 + 保留 `<world_cue>`；扩充 `director-p4.test.mjs` / `plot-regex-panel.test.mjs` | `build` / `test` 99 通过 3 跳过 / `check` 全绿；待真机验收 |
 | 2026-11-19 | `0.1.0-alpha.11` | 同步状态栏 `ai-request-pipeline.ts`（`buildStandardPromptMiddle` 内联直传）；升级并美化 [plot-regex-template.ts](src/sese-ledger/core/plot-regex-template.ts) 剧情推进面板（日间奶油手账网格纸/樱粉 + 夜间 TokyoNight Storm、支持 `NSFW` 标记/`<match>` 召回依据/`<world_cue>` 后台切入/`sl_world_ack` 选中与压住提示）；新增 [tests/plot-regex-panel.test.mjs](tests/plot-regex-panel.test.mjs) | `build` / `test` 97 通过 3 跳过 / `check` 全绿；待真机验收 |
 | 2026-11-19 | `0.1.0-alpha.10` | 魔改推进深度适配状态栏后台演化 v2 事件池：`statusbar-cognition.ts` 消费 v2 `eventPool`（兼容 v1）并注入 `<statusbar_events>`；`director.ts`/`plot-preset-magic-recall.json` 新增 `statusbarBridge` 能力判据、独立出口 `<world_cue>`（空白不留空行）与隐藏回执 `extractWorldAck`；`host-ai.ts` 在 `worldbookDelegated` 时暂停 `UBS-世界演化-世界动态` 防重喂；`director-runtime.ts` 三入口落楼写入 `sl_world_ack`；`index.ts` 暴露 `isDriverWorldBridgeActive` 与变更自动同步；`plot-tab.ts` 新增极简勾选框、`plot-regex-template.ts` 渲染「后台切入」卡片；扩展 `director-p4.test.mjs` / `director-runtime.test.mjs` / `statusbar-bridge-contract.test.mjs` 含 v2 跨仓闭环测试 | `build` / `test` 95 通过 3 跳过 / `check` 全绿；待真机验收 |

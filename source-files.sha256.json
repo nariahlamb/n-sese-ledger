@@ -1,8 +1,8 @@
 {
   "sourceSnapshot": "2026-10-25",
   "files": {
-    "src/README.md": "101dd448c5b46185b0f68a924edce0293b78f49429bacb99a0b51401f0edfd92",
-    "src/sese-ledger/README.md": "b1f54e008ab8b7ba9ae8b35037ec402818107243f905403b2838ea336016233a",
+    "src/README.md": "859ab6a0bc8d4adecd1ac036e3c85ae30ea22b6768148510da5c6b23ec1e6ba1",
+    "src/sese-ledger/README.md": "d9a000989df7f4373cd697477cab32009dcbfb0f12c94fd9da39754b9d3b3aed",
     "src/sese-ledger/assets/plot-preset-magic-recall.json": "125106a934401f4882a76e0584b6c3562023414b20b718b8833d1951150facb8",
     "src/sese-ledger/assets/plot-preset-pure-recall.json": "ccd85545c2c70c57c250fb46541c6ea3c20fba0c174611bb7fe6849261825e91",
     "src/sese-ledger/assets/standard-template.json": "42e1b2194829720ce3533126bcd23b9d1ff8cf2fa4dd6ef19bc85b93c83d0fd4",
