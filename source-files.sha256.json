@@ -3,7 +3,7 @@
   "files": {
     "src/README.md": "012e8a9d6c240841003b6520912238cd782eae3b12f7a2f54104c7177157002a",
     "src/sese-ledger/README.md": "ea56eeffdf845361ebeffad876b5f56cbc3c80eab10a21bf207d1ebd34119d9a",
-    "src/sese-ledger/assets/plot-preset-magic-recall.json": "a6c3383d26ba501bdbe1b6d54f8dad1b12222ec6ca0decd90529403742fea06d",
+    "src/sese-ledger/assets/plot-preset-magic-recall.json": "766cde948c8ee541b396d1024220af3f49fc5b4bb8a5c37086ffb00b74ecc208",
     "src/sese-ledger/assets/plot-preset-pure-recall.json": "ccd85545c2c70c57c250fb46541c6ea3c20fba0c174611bb7fe6849261825e91",
     "src/sese-ledger/assets/standard-template.json": "10f865610c2c30dade5b31535fe53d9411f99269e7d68f6ff486bc1a126ba2a7",
     "src/sese-ledger/core/ai-request.ts": "8e3bdaaaa9afa2576cfa1ee339c02bbf077381945d32a9cdfa1a40f37b464601",

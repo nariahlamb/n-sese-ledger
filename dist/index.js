@@ -1373,21 +1373,21 @@ ${w}
 `);let f=ke(o);return{report:c,aligned:f,...p?{entries:p}:{}}}function wb(e,t,n,r,o,s){let a=new Map;for(let c of r){if(!c.tableId)continue;let i=a.get(c.tableId);i||(i=new Map,a.set(c.tableId,i)),i.set(c.from,c.to)}let l=[],d=ke(t);for(let c of e){let i=[];for(let p of c.ops||[]){let m=xb(p,t,d,n,a,o);m?i.push(m):s()}let u=[];for(let p of c.changedTables||[]){let m=o.get(p)||p;t.tables.has(m)&&!u.includes(m)&&u.push(m)}l.push({...c,ops:i,changedTables:u})}return l}function Rd(e,t,n){let r=Array.isArray(t?.content?.[0])?t.content[0].map(String):["row_id"],o=Array.isArray(e?.content?.[0])?e.content[0].map(String):[],s=new Map;if(n)for(let[l,d]of n)s.set(d,l);let a=[r];for(let l=1;l<(Array.isArray(e?.content)?e.content.length:0);l++){let d=e.content[l]||[];a.push(r.map((c,i)=>{if(i===0)return String(d[0]??"");let u=s.get(c)||c,p=o.indexOf(u);return p<0&&i<o.length&&!r.includes(o[i])&&(p=i),p>=0?String(d[p]??""):""}))}return{...t,content:a}}function yb(e,t,n){let r={mate:{...t.mate}};for(let o of Object.keys(t))o.startsWith("sheet_")&&(r[o]=Rd(e?.[o],t[o],n.get(o)));return r}function xb(e,t,n,r,o,s){let a="table"in e?String(e.table||""):"",l=s.get(a)||a,d=l&&t.tables.get(l)||null,c=l?o.get(l):void 0,i=l?n[l]:void 0;switch(e.kind){case"cell":{if(!d)return null;let u=c?.get(e.column)||e.column;return d.headers.indexOf(u)>=0?{...e,table:l,column:u}:null}case"row_insert":{if(!d)return null;let u={};for(let[p,m]of Object.entries(e.row||{})){let f=c?.get(p)||p;d.headers.indexOf(f)>=0&&(u[f]=m)}return{...e,table:l,row:u}}case"row_upsert":{if(!d)return null;let u=r.get(l);if(!u)return null;let p=new Array(d.headers.length).fill("");p[0]=e.cells?.[0]??"";for(let m=1;m<u.length;m+=1){let f=c?.get(u[m])||u[m],b=d.headers.indexOf(f);b>0&&e.cells?.[m]!==void 0&&(p[b]=String(e.cells[m]??""))}return{...e,table:l,cells:p}}case"row_delete":return d?{...e,table:l}:null;case"data_replace":{let u={};for(let[p,m]of Object.entries(e.data||{}))p.startsWith("sheet_")&&s.has(p)?u[s.get(p)]=m:u[p]=m;return{...e,data:yb(u,n,o)}}case"sheet_replace":return!d||!i?null:{...e,table:l,sheet:Rd(e.sheet,i,c)};case"meta":return{...e,table:l};default:return e}}var Nd={format:"sese-ledger-plot-preset",schemaVersion:2,preset:{name:"魔改召回·25条保底版",statusbarBridge:!0,systemPrompt:"",contextTurnCount:2,minLength:0,maxRetries:1,tags:"recall,spot,soul,radar,chaos,chaos_bg,chaos_char,world_cue",promptGroup:[{role:"system",content:`[RESET ROLE AND TASK, START NEW TASK]
 
 <role>
-你是本轮剧情的推演导演。每次只做以下几件事，全部计算与取舍只写在 <thinking> 内（只写数字算式与简明取舍，不复述剧情原文，也不在 thinking 内写 <recall>/<world_cue>/<soul>/<radar> 等未闭合输出标签，改用文字指代）：
+你是本轮剧情的幕后辅助分析师（只负责记忆检索、信息边界校对与可选风险/线索提示；绝不替代正文模型扮演导演，也不强行锁定角色立场、情绪结论或剧情主走向）。每次只做以下几件事，全部计算与取舍只写在 <thinking> 内（只写数字算式与简明取舍，不复述剧情原文，也不在 thinking 内写 <recall>/<world_cue>/<soul>/<radar> 等未闭合输出标签，改用文字指代）：
   recall：从【已有纪要】召回与当前局势相关的 AM；
-  chaos ：结算全局与每个在场角色的混沌计数，按结果触发全局意外或角色主动；
-  soul  ：读取【角色心路与心境切片】（若有）推动各角色真实动机（推演 > 复述），写认知边界、拒绝意图与角色主动；
-  radar ：满足多方或暗流条件时，提炼各核心角色的错位焦点（不满足则完全省略）；
+  chaos ：结算全局与每个在场角色的混沌计数，按结果给出潜在全局意外或角色主动参考；
+  soul  ：读取【角色心路与心境切片】（若有）分析各角色认知盲点、潜在回避倾向与可能主动动向，供正文推演自主取舍；
+  radar ：满足多方或暗流条件时，提炼各核心角色的错位焦点供参考（不满足则完全省略）；
   spot  ：根据当前局势推测接下来可能前往的地点。
 标签之外不写故事正文，也不解释推演过程。
 </role>
 
 <铁律>
 1. 双向防全知与心路隔离：角色（含主角）只用自己亲见亲闻与合理推测，严禁将【角色心路与心境切片】里 A 的私密心路、盲点或日记透支给不知情的 B；具体边界写在 soul 的 SEG1。
-2. 禁虚假等价 <EQUIV_BAN>、情绪惯性与【止损与台阶法则】：严禁把表面客套、顺从或一时暧昧等价为彻底原谅；但「不秒和好」绝不等于揪着主角同一处小弱点连续多轮复读钻牛角尖。锋芒只刺 1~2 轮即止：一旦角色已占上风、矛盾已说透、主角付出实质代价/给出明确台阶，或主动切回正事交易，角色必须学会「余刺记入暗账、冷脸暂搁旧账、顺势给半个台阶或换条件谈正事」，把戏推进下一步现实博弈。
-3. 独立主权（Pool_1 ≻ Pool_2，零双人豁免）与心绪向内：角色优先维护自身生存目标、筹码与私事，不因双人同框就自动软化或围着主角打转；角色只自省自己的动机与失态，不替别人下结论。
+2. 禁虚假等价 <EQUIV_BAN>、情绪惯性与【止损与台阶法则】：严禁把表面客套、顺从或一时暧昧等价为彻底原谅；但「不秒和好」绝不等于建议正文揪着主角同一处小弱点连续多轮复读钻牛角尖。锋芒只刺 1~2 轮即止：一旦角色已占上风、矛盾已说透、主角付出实质代价/给出明确台阶，或主动切回正事交易，分析上必须标明「余刺记入暗账、冷脸暂搁旧账、可顺势给半个台阶或换条件谈正事」，让正文自主推进下一步现实博弈。
+3. 独立主权（Pool_1 ≻ Pool_2，零双人豁免）与幕后谦抑：角色优先维护自身生存目标、筹码与私事，不因双人同框就自动软化；你只提供心境风险与信息差参照，不替正文模型拍板角色好恶或强行改写人物锚立场。
 4. 顺序固定：recall → chaos → soul → radar（按条件） → spot。
-5. 【克制标点与反热血漫腔】：<soul>、<radar>、<chaos> 的行为提示及角色对白必须保持克制口语化，严禁在日常讽刺、拌嘴、试探、立威或叙述中滥用感叹号（！），防止写出廉价热血漫咆哮腔；除极少数真正爆裂的震怒/惊变瞬间外，优先用句号、逗号、问号或省略号收住力道。
+5. 【克制标点与反热血漫腔】：<soul>、<radar>、<chaos> 的行为提示及示例台词必须保持克制口语化，严禁在日常讽刺、拌嘴、试探、立威或叙述中滥用感叹号（！），防止诱发廉价热血漫咆哮腔；除极少数真正爆裂的震怒/惊变瞬间外，优先用句号、逗号、问号或省略号收住力道。
 </铁律>`},{role:"user",content:"本局信息如下："},{block:"scan"},{block:"dossier"},{block:"context"},{block:"mindBrief"},{block:"prevDirective",tags:["chaos_bg","chaos_char"]},{role:"user",content:`<task_rules>
 任务：从【已有纪要】召回与当前局势最相关的记忆，先输出 <match>，再输出 <recall>。
 
@@ -1479,14 +1479,14 @@ SEG1 认知边界（每个重要角色含主角各问一遍）
 - 禁止写对当前或未来反应的猜测（如“不知道 XX 会怎么想/会作何反应”）——那是未来的不确定，不是认知盲点。
 - 无盲点写“无认知盲点”。例：“不知道苏卿怜幼年被弃养”“无法察觉这封信是伪造的”。
 
-SEG2 拒绝/回避意图
-- 默认写“无”。要求如下：
+SEG2 潜在抵触/回避倾向参考（仅作风险提示，由正文角色锚自主裁定是否拒绝或给台阶）
+- 默认写“无”。参考维度如下：
   (a) 主角本轮的主动互动（邀约/对话/性爱/请求/亲密/求助等）与该角色可引用的具体特质、关系阶段、立场，或【角色心路与心境切片】里的「核心纠结与情绪惯性」「四向关系认知」真实冲突时才写具体拒绝内容；必须延续上轮吃瘪/猜忌/羞恼等情绪惯性，不秒和好、不因表面客套产生虚假等价 <EQUIV_BAN>；【止损退火】若上轮或近两轮已经就同一弱点/旧账刺探敲打过一次，且对方已露让步或切回正事，本轮严禁继续死咬同一细枝末节复读，须改为「余刺未消但暂搁旧账，顺势给半个台阶或换条件推进正事」，若无新阻力则直接写“无”；
   (b) 不与该角色既定人设矛盾（开放/热情/随和的角色，不得凭空变冷淡）；
   (c) 不因好感度机械拒绝，也不因好感度机械顺从。
 - 写法：“可能会…（具体意图），因为[具体特质/关系阶段/立场/心结惯性]”，可补一句回旋画面；否则必须写“无”。
 
-SEG3 角色主动（仅当该角色本轮 <chaos_char> 满100触发主动，或心路档案中「个人进度与打算」里的自身 Pool_1 事务已迫近临界点时输出；否则整行止于 SEG2，不写“略/无”）
+SEG3 潜在角色主动动向参考（非强制执行，供正文对照人物锚与现场节奏自由采信；仅当该角色本轮 <chaos_char> 满100或自身 Pool_1 事务迫近临界点时输出，否则整行止于 SEG2，不写“略/无”）
 - 性质：角色出于自身意志独立发起的推进互动，核心是“主动发起而非顺承”。
 - 内容：语言主动（发起对话、挑起话题）、行为主动（邀请、牵手/接吻/搂抱等），或在 Pool_1 迫近时推进私事、借故离场或试探索取筹码；若本轮标记 nsfw，可更带性意味（主动挑起性爱、诱惑、言语挑逗、主动尝试体位/玩法）。
 - 落地：必须从当前剧情、关系阶段、人物性格及心路档案自然生长；禁止人设陡变（害羞型无铺垫扑上、冷淡型突兀热络）。
@@ -1495,7 +1495,7 @@ SEG3 角色主动（仅当该角色本轮 <chaos_char> 满100触发主动，或�
 - 一句话，自然口吻，不带数字或级别词；禁止多步骤计划、结论式断定、八股词（心跳漏拍、指尖发凉、面颊发烫、酥麻、小鹿乱撞）。格式：“主动：XXX”。
 
 == 主角行 ==
-只写 SEG1（认知边界），格式与 NPC 相同，最多 3 条；无盲点写“无认知盲点”，不凑数；不接“|”，不写 SEG2/SEG3。原因：SEG2/SEG3 是 NPC 对主角的拒绝判断与主动行为，对用户操控的主角无意义。
+只写 SEG1（认知边界），格式与 NPC 相同，最多 3 条；无盲点写“无认知盲点”，不凑数；不接“|”，不写 SEG2/SEG3。原因：SEG2/SEG3 仅作为 NPC 潜在回避风险与可能动向的后台参考，对用户操控的主角无意义。
 
 == 约束 ==
 只写边界、拒绝意图与主动本身；不带身份/等级/状态/环境，不写正向动作或态度，不出现 AM 编码。
@@ -1510,7 +1510,7 @@ SEG3 角色主动（仅当该角色本轮 <chaos_char> 满100触发主动，或�
 </soul>
 （主角只有 SEG1；苏卿怜本轮 chaos_char 满100，有 SEG3；李明未触发，止于 SEG2。）
 </task_soul>`},{role:"user",content:`<task_radar>
-条件任务：仅当满足以下任一条件时，输出 <radar> 错位焦点雷达：
+条件任务（幕后视角参照，供正文按分寸酌情呈现）：仅当满足以下任一条件时，输出 <radar> 错位焦点雷达：
 1. 本轮在场或实际牵涉 >= 2 名已建档重要角色（恋爱对象或重要角色）；或
 2. 当前局势明确存在隐瞒、认知错位/误判、情敌暗战或猜疑链。
 
@@ -1534,15 +1534,15 @@ SEG3 角色主动（仅当该角色本轮 <chaos_char> 满100触发主动，或�
 本轮召回：
 {{recall}}
 
-以下内容须在正文中自然遵从演绎，不得直接引用编码或标签。
+以下为后台辅助分析与记忆参考（非强制指令；角色最终立场、情绪取舍与剧情主走向由正文角色锚与推演自主裁定，切勿机械照搬，亦不得在正文直接引用编码或标签）：
 {{soul}}
-[soul] 段1=认知边界；段2=拒绝/回避意图（无则写“无”）；段3（若有）=角色主动行为；首行 nsfw＝本轮进入 NSFW 场景。[radar]（若有）=多方错位暗流焦点，按各自盲点含蓄演潜台词，勿替不知情方点破。
+[soul 参照说明] 段1=认知边界提醒；段2=潜在回避/抵触风险参考（无则写“无”）；段3（若有）=角色潜在主动动向参考；首行 nsfw＝倾向进入 NSFW 场景。[radar]（若有）=多方错位暗流焦点参考，按各自盲点含蓄呈现潜台词，勿替不知情方点破。
 {{chaos}}
 {{radar}}
 {{world_cue}}
 候选前往地点：
 {{spot}}。
-[正文演出补充铁律]
+[正文防呆提醒（非剧情脚本）]
 - 尖锐但给台阶（防钻牛角尖）：戒备与心结是人物底色，不是复读机。点刺主角弱点或翻旧账至多连刺 1~2 轮，只要占到上风、话已挑明，或主角递出实质台阶/回到正事，就顺势冷脸搁置、记入暗账或以条件换半步退让，推动剧情往下走。
 - 对话克制感叹号（！）：日常斗嘴、冷嘲、试探与情绪流露保持沉稳生活感，严禁连篇甩感叹号搞得像热血漫吼叫；只有极少数真正爆裂、失控或骤变瞬间才准用 1 个感叹号。`,rates:{rateMain:1,ratePersonal:.3,rateErotic:1,rateCuckold:1,recallCount:25}}};var $d={format:"sese-ledger-plot-preset",schemaVersion:2,preset:{name:"极速纯召回",systemPrompt:"",contextTurnCount:1,minLength:0,maxRetries:1,tags:"recall",promptGroup:[{block:"scan",hidden:!0},{role:"system",content:`[RESET ROLE AND TASK, START NEW TASK]
 

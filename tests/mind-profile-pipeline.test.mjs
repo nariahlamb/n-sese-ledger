@@ -387,3 +387,12 @@ test('buildMindBriefBlock 与 plot-preset-magic-recall 含/不含 radar 的提�
   });
   assert.match(withRadar, /<radar>【苏晴】以为危机只在合同，未察觉门锁已换<\/radar>/);
 });
+
+test('魔改召回已退居幕后辅助分析定位，不越权接管正文角色锚与走向裁定', () => {
+  const preset = directorMod.builtinDriverPreset('魔改召回');
+  assert.doesNotMatch(preset.promptGroup[0].content, /你是本轮剧情的推演导演/);
+  assert.match(preset.promptGroup[0].content, /幕后辅助分析师/);
+  assert.doesNotMatch(preset.finalDirectiveTemplate, /以下内容须在正文中自然遵从演绎/);
+  assert.match(preset.finalDirectiveTemplate, /以下为后台辅助分析与记忆参考（非强制指令/);
+  assert.match(preset.finalDirectiveTemplate, /由正文角色锚与推演自主裁定/);
+});
